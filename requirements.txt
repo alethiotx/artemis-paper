@@ -1,0 +1,16 @@
+pandas
+fsspec
+s3fs
+numpy
+alethiotx>=2.1.1
+scikit-learn
+plotnine>=0.15.0
+seaborn
+matplotlib
+upsetplot
+ipykernel
+ipywidgets
+tqdm
+jupyter
+nbconvert
+pykeen==1.11.1

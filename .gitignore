@@ -1,0 +1,60 @@
+# Jupyter
+*ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Terraform
+**.terraform**
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+backend.hcl
+
+# Nextflow
+**.nextflow**
+**.nextflow.log**
+work/
+.nextflow/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Output directories
+results/
+output/
+plots/
+data/local/
+
+# Local testing
+test/
+for_ed/
+check/
+targets/
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials (extra safety)
+*.pem
+*.key
+credentials
+secrets.yml
