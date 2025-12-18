@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from plotnine import (
     ggplot, aes, theme_seaborn, theme, element_text,
-    xlab, ylab, geom_boxplot
+    xlab, ylab, geom_boxplot, facet_grid
 )
 
 
@@ -179,7 +179,7 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
     """
     Create comprehensive barplot showing baseline percentages across all indications.
     
-    Averages across knowledge graphs and pathway genes for cleaner visualization.
+    Faceted by pathway genes (rows) and training targets (columns), averaging across KGs.
     
     Parameters
     ----------
@@ -201,39 +201,38 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
     for indication, baseline in all_baselines.items():
         for ct in baseline.keys():
             for rf_threshold in baseline[ct].keys():
-                # Average across pathway genes and knowledge graphs
-                all_values = []
                 for pg_number in baseline[ct][rf_threshold].keys():
+                    # Average across knowledge graphs only
                     # baseline[ct][rf_threshold][pg_number] is a Series with kg as index
-                    all_values.extend(baseline[ct][rf_threshold][pg_number].values)
-                
-                avg_baseline = sum(all_values) / len(all_values)
-                
-                data_records.append({
-                    'Indication': indication,
-                    'Training_Targets': ct,
-                    'RF_Threshold': float(rf_threshold),
-                    'Baseline_Pct': avg_baseline
-                })
+                    avg_baseline = baseline[ct][rf_threshold][pg_number].mean()
+                    
+                    data_records.append({
+                        'Indication': indication,
+                        'Training_Targets': ct,
+                        'Pathway_Genes': f'PG {pg_number}',
+                        'RF_Threshold': float(rf_threshold),
+                        'Baseline_Pct': avg_baseline
+                    })
     
     df = pd.DataFrame(data_records)
     
-    # Create single boxplot showing distribution across all indications
+    # Create faceted boxplot
     # X-axis is RF threshold, boxplots show distribution of 7 indications
-    # Color by training target type
+    # Rows: pathway genes, Columns: training target type
+    
     plot = (
-        ggplot(df, aes(x='factor(RF_Threshold)', y='Baseline_Pct', fill='Training_Targets', color='Training_Targets'))
+        ggplot(df, aes(x='factor(RF_Threshold)', y='Baseline_Pct', fill='Training_Targets'))
         + geom_boxplot()
+        + facet_grid('Pathway_Genes ~ Training_Targets')
         + theme_seaborn()
         + xlab('Random Forest Probability Threshold')
-        + ylab('Baseline Percentage (%) - Averaged across KGs and PGs')
+        + ylab('Baseline Percentage (%)')
         + theme(
             text=element_text(size=14),
             axis_text=element_text(size=12),
             axis_title=element_text(size=14),
-            legend_text=element_text(size=12),
-            legend_title=element_text(size=14),
-            figure_size=(10, 6)
+            legend_position='none',
+            figure_size=(10, 12)
         )
     )
     
