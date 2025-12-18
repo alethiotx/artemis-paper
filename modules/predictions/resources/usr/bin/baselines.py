@@ -209,7 +209,7 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
                     data_records.append({
                         'Indication': indication,
                         'Training_Targets': ct,
-                        'Pathway_Genes': f'PG {pg_number}',
+                        'Pathway_Genes': pg_number,
                         'RF_Threshold': float(rf_threshold),
                         'Baseline_Pct': avg_baseline
                     })
