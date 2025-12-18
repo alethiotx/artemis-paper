@@ -185,6 +185,10 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
     ----------
     all_baselines : Dict[str, Dict]
         Dictionary mapping indication names to their baseline statistics
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame used for plotting
     """
     plots_dir = Path('plots')
     plots_dir.mkdir(exist_ok=True)
@@ -238,6 +242,8 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
     
     print(f"  ✓ all_indications_baseline.png")
 
+    return(df)
+
 
 # ─── Main Execution ──────────────────────────────────────────────────────────
 
@@ -278,7 +284,9 @@ def main():
         create_heatmap_grid(baseline, indication)
     
     # Generate combined plot across all indications
-    create_combined_baseline_plot(all_baselines)
+    plot_df = create_combined_baseline_plot(all_baselines)
+
+    plot_df.to_csv(data_dir / 'all_indications_baseline_data.csv', index=False)
     
     print("\n✓ All baselines computed and visualized")
 
