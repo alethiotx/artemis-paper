@@ -58,7 +58,8 @@ process combine {
   
   output:
     path 'plots/*'
-    path 'data/*'
+    path 'data/*.pickle'
+    path 'data/all.csv', emit: combined_csv
   
   script:
   """
@@ -136,6 +137,7 @@ process baselines {
   
   input:
     path(pickle)
+    path(combined_csv)
   
   output:
     path 'plots/*'
@@ -145,7 +147,7 @@ process baselines {
   """
   mkdir -p plots data
   
-  baselines.py ${pickle}
+  baselines.py ${pickle} ${combined_csv}
   """
 }
 
