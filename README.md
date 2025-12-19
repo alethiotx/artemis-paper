@@ -4,9 +4,17 @@
 
 # Artemis Pipeline
 
-**Artemis**: Public knowledge graphs enable accessible and scalable drug target discovery.
+**Artemis**: Indication-Aware Target Prioritization by Integrating Public Knowledge Graphs with Clinical Data
 
-A Nextflow pipeline for end-to-end drug target prediction using biomedical knowledge graphs (KGs), clinical trial data, and pathway data.
+A Nextflow pipeline to reproduce the results from the Artemis paper.
+
+---
+
+## Pipeline Overview
+
+![Pipeline DAG](dag.svg)
+
+*Figure: Complete workflow diagram showing data ingestion, knowledge graph analysis, model training, target prediction, and visualization steps.*
 
 ---
 
@@ -94,8 +102,15 @@ Train classifiers and predict novel targets:
 - Grid search: 4 KGs × 3 filtering modes × 5 RF thresholds × 3 pathway gene counts × 10 CV folds
 - Outputs: predicted targets, training sets, cross-indication overlap matrices, SABCS validation, baseline statistics
 - Aggregates all predictions and training labels into unified pickle files for downstream analysis
-- Generates heatmaps showing baseline percentages by KG, clinical trial filter, and pathway genes
-- Produces boxplots comparing baseline statistics across all 7 indications
+- **Baseline Analysis:**
+  - Computes baseline statistics (percentage of targets above threshold) averaged across iterations and KGs
+  - Generates per-indication heatmaps showing baseline percentages by clinical trial filter, RF threshold, and pathway genes
+  - Creates comprehensive boxplot comparing baseline distributions across all 7 indications
+  - Produces publication-ready comparison plot faceting baseline, sensitivity, and specificity (plotnine/ggplot2 style)
+- **SABCS Consensus:**
+  - Generates standard heatmap grids for each RF threshold (pathway genes × clinical trial filters × KGs)
+  - Creates horizontal heatmap for RF 0.7 with Unique CT filter across all 4 KGs for focused comparison
+  - Performs hierarchical clustering to identify consensus predictions across knowledge graphs
 
 **Usage:**
 ```bash
@@ -107,6 +122,7 @@ Recompute baseline statistics and consensus analysis using existing prediction r
 - Loads pre-computed target predictions and training sets from S3
 - Regenerates baseline statistics and visualizations across all indications
 - Recomputes SABCS consensus predictions without retraining models
+- Updates visualization styles (e.g., plotnine-based plots with enhanced aesthetics)
 - Useful for updating visualizations or analysis parameters without re-running expensive compute jobs
 
 **Usage:**
@@ -174,14 +190,21 @@ s3://alethiotx-artemis/
 │   │   └── all_training_sets.pickle # Unified training labels (all indications)
 │   ├── baselines/
 │   │   ├── plots/
-│   │   │   ├── breast.png     # Per-indication baseline heatmaps
-│   │   │   ├── ...
-│   │   │   └── all_indications_baseline.png # Boxplots across all indications
+│   │   │   ├── heatmaps/
+│   │   │   │   ├── breast.png     # Per-indication baseline heatmaps
+│   │   │   │   └── ...
+│   │   │   ├── all_baseline.png   # Boxplots across all indications
+│   │   │   └── for_paper.png      # Publication-ready comparison plot (plotnine)
 │   │   └── data/
-│   │       ├── breast.pickle  # Per-indication baseline statistics
-│   │       └── ...
+│   │       ├── indications/
+│   │       │   ├── breast.pickle  # Per-indication baseline statistics
+│   │       │   └── ...
+│   │       └── for_paper.csv      # Combined baseline & predictions data
 │   ├── sabcs/
-│   │   ├── plots/             # SABCS overlap heatmaps
+│   │   ├── plots/
+│   │   │   ├── 0.5.png            # Standard heatmap grid
+│   │   │   ├── ...
+│   │   │   └── 0.7_unique_horizontal.png  # Horizontal Unique-only plot
 │   │   └── data/              # SABCS overlap data
 │   └── sabcs_consensus/
 │       ├── plots/             # Consensus prediction heatmaps & clustermaps
@@ -240,7 +263,8 @@ main.nf
 - `scikit-learn`: ML models (Random Forest, SVM)
 - `pykeen==1.11.1`: Knowledge graph embeddings
 - `alethiotx>=2.0.9`: Proprietary data access utilities
-- `plotnine`, `seaborn`, `matplotlib`: Visualization
+- `plotnine`: ggplot2-style visualization for publication-ready plots
+- `seaborn`, `matplotlib`: Statistical visualization
 - `upsetplot`: Set intersection plots
 - `fsspec`, `s3fs`: Cloud storage I/O
 

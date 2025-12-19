@@ -50,7 +50,7 @@ process compute {
  *
  * @param csv Collection of prediction CSV files from all compute iterations
  */
-process combine {
+process pr_combine {
   publishDir params.outdir + '/figs/predictions', mode: 'copy'
   
   input:

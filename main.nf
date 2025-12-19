@@ -29,7 +29,7 @@ include { chembl; mesh } from './modules/data'
 include { clinical_scores } from './modules/clinical_scores'
 include { pathway_genes } from './modules/pathway_genes'
 include { cv; cv_combine; range; range_combine } from './modules/cv'
-include { compute; combine; targets; training_sets; baselines; sabcs; sabcs_consensus } from './modules/predictions'
+include { compute; pr_combine; targets; training_sets; baselines; sabcs; sabcs_consensus } from './modules/predictions'
 include { upset } from './modules/upset'
 include { kgs_overview } from './modules/kgs'
 
@@ -143,7 +143,7 @@ workflow {
     )
 
     // Aggregate prediction overlaps and compute sensitivity/specificity
-    combine(
+    pr_combine(
       compute.out.predictions
         .collect()
     )
@@ -169,7 +169,7 @@ workflow {
     // Compute baseline statistics by indication
     baselines(
       targets.out.pickle,
-      combine.out.combined_csv
+      pr_combine.out.combined_csv
     )
 
     // Generate consensus predictions across KGs for SABCS targets
