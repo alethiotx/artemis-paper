@@ -381,6 +381,9 @@ def main():
     data_dir = Path('data')
     data_dir.mkdir(exist_ok=True)
     
+    indications_dir = data_dir / 'indications'
+    indications_dir.mkdir(exist_ok=True)
+    
     all_baselines = {}
     
     for indication, results in all_results.items():
@@ -391,7 +394,7 @@ def main():
         all_baselines[indication] = baseline
         
         # Save baseline results
-        output_path = data_dir / f'indications/{indication}.pickle'
+        output_path = indications_dir / f'{indication}.pickle'
         with open(output_path, 'wb') as f:
             pickle.dump(baseline, f)
         print(f"✓ Saved baseline statistics to {output_path}")
