@@ -235,6 +235,75 @@ def create_heatmap_grid(results: Dict, rf_threshold: str) -> None:
     return fig
 
 
+def create_horizontal_unique_heatmap(results: Dict, rf_threshold: str) -> None:
+    """
+    Create horizontal heatmap showing only Unique CT filter across all KGs.
+    
+    Parameters
+    ----------
+    results : Dict
+        Averaged results dictionary
+    rf_threshold : str
+        RF threshold to plot
+    """
+    fig, axes = plt.subplots(
+        ncols=len(KGS),
+        nrows=1,
+        sharey=True,
+        sharex=True,
+        figsize=(12, 3)
+    )
+    
+    ct = 'Unique'
+    
+    for col_idx, kg in enumerate(KGS):
+        ax = axes[col_idx]
+        
+        # Combine pathway gene results
+        pg_data = pd.concat(
+            [results[kg][ct][rf_threshold][pg] for pg in PG_NUMBERS],
+            axis=1,
+            keys=PG_NUMBERS
+        )
+        
+        # Clean up multi-level columns if present
+        if isinstance(pg_data.columns, pd.MultiIndex):
+            pg_data.columns = pg_data.columns.get_level_values(0)
+        
+        pg_data = pg_data[PG_NUMBERS].astype(int)
+        
+        # Transpose for heatmap
+        heatmap_data = pg_data.T
+        
+        # Show colorbar only on last column
+        show_cbar = (col_idx == len(KGS) - 1)
+        cbar_kws = dict(location="right", fraction=0.15) if show_cbar else None
+        
+        # Create heatmap
+        sns.heatmap(
+            heatmap_data,
+            annot=True,
+            fmt='d',
+            cbar=show_cbar,
+            cbar_kws=cbar_kws,
+            ax=ax,
+            vmin=HEATMAP_VMIN,
+            vmax=HEATMAP_VMAX,
+            center=HEATMAP_CENTER,
+            cmap=HEATMAP_CMAP
+        )
+        
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=60)
+        ax.set_title(kg, size='large')
+        
+        # Only show y-axis label on first subplot
+        if col_idx > 0:
+            ax.set_ylabel('')
+    
+    plt.tight_layout()
+    return fig
+
+
 # ─── Main Execution ──────────────────────────────────────────────────────────
 
 def main():
@@ -279,6 +348,14 @@ def main():
         plt.close(fig)
         
         print(f"  ✓ {rf_threshold}.png")
+    
+    # Generate special horizontal plot for RF threshold 0.7 with Unique only
+    print("Generating horizontal Unique plot for RF 0.7...")
+    fig_horizontal = create_horizontal_unique_heatmap(results_averaged, '0.7')
+    output_path_horizontal = plots_dir / '0.7_unique_horizontal.png'
+    fig_horizontal.savefig(output_path_horizontal, dpi=300, bbox_inches='tight')
+    plt.close(fig_horizontal)
+    print(f"  ✓ 0.7_unique_horizontal.png")
     
     print("✓ All visualizations generated")
 
