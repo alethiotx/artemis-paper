@@ -35,7 +35,6 @@ This pipeline performs:
 ### Prerequisites
 - [Nextflow](https://www.nextflow.io/) ≥ 23.04
 - Docker or Singularity
-- AWS credentials (for S3 access)
 
 ### Installation
 
@@ -53,7 +52,7 @@ nextflow run main.nf -profile local
 nextflow run main.nf -profile local --mode cv
 
 # Use specific scores date
-nextflow run main.nf -profile local --scores_date 2025-12-10
+nextflow run main.nf -profile local --scores_date 2025-12-12
 ```
 
 ---
@@ -78,7 +77,7 @@ Compute clinical target scores and pathway gene sets for 7 indications:
 
 **Usage:**
 ```bash
-nextflow run main.nf --mode scores --scores_date 2025-12-10
+nextflow run main.nf --mode scores --scores_date 2025-12-12
 ```
 
 ### 3. `cv` (Cross-Validation)
@@ -98,8 +97,8 @@ nextflow run main.nf --mode cv
 ```
 
 ### 4. `predictions` (default)
-Train classifiers and predict novel targets:
-- Grid search: 4 KGs × 3 filtering modes × 5 RF thresholds × 3 pathway gene counts × 10 CV folds
+Train classifiers and predict targets:
+- Grid search: 4 KGs × 3 filtering modes × 5 RF thresholds × 3 pathway gene counts × 10 iterations
 - Outputs: predicted targets, training sets, cross-indication overlap matrices, SABCS validation, baseline statistics
 - Aggregates all predictions and training labels into unified pickle files for downstream analysis
 - **Baseline Analysis:**
@@ -114,7 +113,7 @@ Train classifiers and predict novel targets:
 
 **Usage:**
 ```bash
-nextflow run main.nf --mode predictions --scores_date 2025-12-10
+nextflow run main.nf --mode predictions --scores_date 2025-12-12
 ```
 
 ### 5. `post_predictions`
@@ -154,7 +153,7 @@ nextflow run main.nf --mode upset
 | Parameter         | Default                                   | Description                                    |
 |-------------------|-------------------------------------------|------------------------------------------------|
 | `mode`            | `predictions`                             | Pipeline mode (see above)                      |
-| `scores_date`     | `2025-12-10`                              | Clinical scores snapshot date (YYYY-MM-DD)     |
+| `scores_date`     | `2025-12-12`                              | Clinical scores snapshot date (YYYY-MM-DD)     |
 | `outdir`          | `s3://alethiotx-artemis`                  | Output directory (S3 or local path)            |
 | `chembl_version`  | `36`                                      | ChEMBL database version                        |
 | `mesh_file_base`  | `d2025`                                   | MeSH vocabulary release                        |
@@ -307,24 +306,35 @@ The pipeline uses the `alethiotx` Python package internally. For interactive ana
 
 ### Example: Load clinical scores
 ```python
-import alethiotx.kg as kg
+from alethiotx.artemis.clinical.scores import load as load_clinical_scores
+from alethiotx.artemis.clinical.scores import approved, unique
 
 # Load clinical target scores for all 7 indications
 breast, lung, prostate, melanoma, bowel, diabetes, cardiovascular = \
-    kg.load_clinical_scores(date='2025-12-10')
+    load_clinical_scores(date='2025-12-10')
 
 # Filter to approved drugs only (score > 20)
-approved = kg.cut_clinical_scores(
-    [breast, lung, prostate, melanoma, bowel, diabetes, cardiovascular],
-    lowest_score=20
+approved_scores = approved(
+    [breast, lung, prostate, melanoma, bowel, diabetes, cardiovascular]
 )
 
+# Or filter to unique targets
+unique_scores = unique(
+    [breast, lung, prostate, melanoma, bowel, diabetes, cardiovascular]
+)
+```
+
+### Example: Load pathway genes
+```python
+from alethiotx.artemis.pathway.genes import load as load_pathway_genes
+
 # Get pathway genes (top 100 per indication)
-pathway_genes = kg.load_pathway_genes(date='2025-12-10', n=100)
+pathway_genes = load_pathway_genes(date='2025-12-10', n=100)
 ```
 
 ### Example: Train classifier
 ```python
+from alethiotx.artemis.cv.pipeline import prepare as prepare_model
 from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 
@@ -335,7 +345,7 @@ kg_features = pd.read_csv(
 )
 
 # Prepare training data
-res = kg.pre_model(
+res = prepare_model(
     kg_features, 
     breast,
     pathway_genes=pathway_genes[0],
