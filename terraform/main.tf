@@ -76,6 +76,31 @@ resource "aws_s3_bucket_public_access_block" "alethiotx_artemis" {
   restrict_public_buckets = false
 }
 
+# CORS configuration for browser access
+resource "aws_s3_bucket_cors_configuration" "alethiotx_artemis" {
+  bucket = aws_s3_bucket.alethiotx_artemis.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET", "HEAD"]
+    allowed_origins = ["*"]
+    max_age_seconds = 3000
+  }
+}
+
+# Website configuration
+resource "aws_s3_bucket_website_configuration" "alethiotx_artemis" {
+  bucket = aws_s3_bucket.alethiotx_artemis.id
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "error.html"
+  }
+}
+
 resource "aws_s3_bucket" "alethiotx_artemis_internal" {
   bucket = "alethiotx-artemis-internal"
 }

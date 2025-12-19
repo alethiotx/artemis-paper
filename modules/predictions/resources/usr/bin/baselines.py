@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from plotnine import (
     ggplot, aes, theme_seaborn, theme, element_text,
-    xlab, ylab, geom_boxplot
+    xlab, ylab, geom_boxplot, facet_grid
 )
 
 
@@ -115,7 +115,7 @@ def create_heatmap_grid(baseline: Dict, indication: str) -> None:
     indication : str
         Disease indication name
     """
-    plots_dir = Path('plots')
+    plots_dir = Path('plots/heatmaps')
     plots_dir.mkdir(exist_ok=True)
     
     print("Generating heatmap grid...")
@@ -179,12 +179,16 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
     """
     Create comprehensive barplot showing baseline percentages across all indications.
     
-    Averages across knowledge graphs and pathway genes for cleaner visualization.
+    Faceted by pathway genes (rows) and training targets (columns), averaging across KGs.
     
     Parameters
     ----------
     all_baselines : Dict[str, Dict]
         Dictionary mapping indication names to their baseline statistics
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame used for plotting
     """
     plots_dir = Path('plots')
     plots_dir.mkdir(exist_ok=True)
@@ -197,46 +201,163 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
     for indication, baseline in all_baselines.items():
         for ct in baseline.keys():
             for rf_threshold in baseline[ct].keys():
-                # Average across pathway genes and knowledge graphs
-                all_values = []
                 for pg_number in baseline[ct][rf_threshold].keys():
+                    # Average across knowledge graphs only
                     # baseline[ct][rf_threshold][pg_number] is a Series with kg as index
-                    all_values.extend(baseline[ct][rf_threshold][pg_number].values)
-                
-                avg_baseline = sum(all_values) / len(all_values)
-                
-                data_records.append({
-                    'Indication': indication,
-                    'Training_Targets': ct,
-                    'RF_Threshold': float(rf_threshold),
-                    'Baseline_Pct': avg_baseline
-                })
+                    avg_baseline = baseline[ct][rf_threshold][pg_number].mean()
+                    
+                    data_records.append({
+                        'Indication': indication,
+                        'Training_Targets': ct,
+                        'Pathway_Genes': pg_number,
+                        'RF_Threshold': float(rf_threshold),
+                        'Baseline_Pct': avg_baseline
+                    })
     
     df = pd.DataFrame(data_records)
     
-    # Create single boxplot showing distribution across all indications
+    # Create faceted boxplot
     # X-axis is RF threshold, boxplots show distribution of 7 indications
-    # Color by training target type
+    # Rows: pathway genes, Columns: training target type
+    
     plot = (
-        ggplot(df, aes(x='factor(RF_Threshold)', y='Baseline_Pct', fill='Training_Targets', color='Training_Targets'))
+        ggplot(df, aes(x='factor(RF_Threshold)', y='Baseline_Pct', fill='Training_Targets'))
         + geom_boxplot()
+        + facet_grid('Pathway_Genes ~ Training_Targets')
         + theme_seaborn()
         + xlab('Random Forest Probability Threshold')
-        + ylab('Baseline Percentage (%) - Averaged across KGs and PGs')
+        + ylab('Baseline Percentage (%)')
         + theme(
             text=element_text(size=14),
             axis_text=element_text(size=12),
             axis_title=element_text(size=14),
-            legend_text=element_text(size=12),
-            legend_title=element_text(size=14),
-            figure_size=(10, 6)
+            legend_position='none',
+            figure_size=(10, 12)
         )
     )
     
-    output_path = plots_dir / 'all_indications_baseline.png'
+    output_path = plots_dir / 'all_baseline.png'
     plot.save(str(output_path), dpi=300)
     
-    print(f"  ✓ all_indications_baseline.png")
+    print(f"  ✓ all_baseline.png")
+
+    return(df)
+
+def combine_baseline_and_predictions(
+    baseline_df: pd.DataFrame,
+    predictions_df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Combine baseline and predictions dataframes with consistent naming.
+    
+    Parameters
+    ----------
+    baseline_path : str
+        Path to baseline CSV file
+    predictions_path : str
+        Path to predictions CSV file
+    output_path : str, optional
+        Path to save combined CSV. If None, doesn't save
+        
+    Returns
+    -------
+    pd.DataFrame
+        Combined dataframe with all data
+    """
+    print(f"Baseline shape: {baseline_df.shape}")
+    print(f"Predictions shape: {predictions_df.shape}")
+    
+    print("\nBaseline columns:", list(baseline_df.columns))
+    print("Predictions columns:", list(predictions_df.columns))
+    
+    # Rename baseline columns to match predictions naming convention
+    # predictions has: kg, ct, rf_prob, pathway_genes, name, variable, value
+    # baseline has: Indication, Training_Targets, Pathway_Genes, RF_Threshold, Baseline_Pct, name
+    column_mapping = {
+        'Indication': 'variable',
+        'Training_Targets': 'ct',
+        'RF_Threshold': 'rf_prob',
+        'Pathway_Genes': 'pathway_genes',
+        'Baseline_Pct': 'value'
+    }
+    
+    baseline_df = baseline_df.rename(columns=column_mapping)
+    print(f"\nRenamed baseline columns: {column_mapping}")
+    
+    # Ensure pathway_genes is int (it may already be numeric now)
+    baseline_df['pathway_genes'] = baseline_df['pathway_genes'].astype(int)
+    
+    # Set name to 'baseline' (predictions already has 'name' for metric type)
+    baseline_df['name'] = 'baseline'
+    
+    # Combine dataframes
+    print("\nCombining dataframes...")
+    combined_df = pd.concat([baseline_df, predictions_df], axis=0, ignore_index=True)
+    
+    print(f"Combined shape: {combined_df.shape}")
+    print(f"\nUnique values in 'name' column: {combined_df['name'].unique()}")
+    
+    return combined_df
+
+
+def create_baseline_comparison_plot(
+    combined_df: pd.DataFrame
+) -> None:
+    """
+    Create comparison plot faceted by metric (name) in rows and training targets (ct) in columns.
+    
+    Shows baseline, sensitivity, and specificity in separate rows
+    for pathway_genes = 0, faceted by training targets (ct).
+    
+    Parameters
+    ----------
+    combined_df : pd.DataFrame
+        Combined dataframe with predictions and baseline data
+    output_path : str
+        Path to save output plot
+    """
+    plots_dir = Path('plots')
+    plots_dir.mkdir(exist_ok=True)
+    # Filter to pathway_genes = 0 and only keep integer thresholds
+    data = combined_df[combined_df['pathway_genes'] == 0].copy()
+    data = data[data['rf_prob'].isin([0.5, 0.6, 0.7, 0.8, 0.9])]
+    
+    # Divide baseline values by 100
+    data.loc[data['name'] == 'baseline', 'value'] = data.loc[data['name'] == 'baseline', 'value'] / 100
+    
+    # Set categorical order for faceting
+    data['name'] = pd.Categorical(
+        data['name'],
+        categories=['baseline', 'sensitivity', 'specificity'],
+        ordered=True
+    )
+    
+    data['ct'] = pd.Categorical(
+        data['ct'],
+        categories=sorted(data['ct'].unique()),
+        ordered=True
+    )
+    
+    # Create the plot using plotnine
+    plot = (
+        ggplot(
+            data,
+            aes('factor(rf_prob)', 'value')
+        )
+        + geom_boxplot(fill='#4C72B0', alpha=0.7, width=0.3)
+        + facet_grid('name ~ ct', scales='free_y')
+        + theme_seaborn()
+        + xlab('Random Forest Probability Threshold')
+        + ylab('Value')
+    )
+    
+    # Create output directory if needed
+    output_path = plots_dir / 'for_paper.png'
+    
+    # Save the plot
+    plot.save(output_path, width=8, height=6)
+    
+    print(f"✓ Saved baseline comparison plot to {output_path}")
 
 
 # ─── Main Execution ──────────────────────────────────────────────────────────
@@ -244,11 +365,12 @@ def create_combined_baseline_plot(all_baselines: Dict[str, Dict]) -> None:
 def main():
     """Compute baseline statistics and generate visualizations."""
     # Parse command-line arguments
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print(__doc__)
         sys.exit(1)
     
     pickle_file = sys.argv[1]
+    predictions_df = pd.read_csv(sys.argv[2])
     
     # Load prediction results (all indications)
     print("Loading prediction results...")
@@ -258,6 +380,9 @@ def main():
     # Process each indication
     data_dir = Path('data')
     data_dir.mkdir(exist_ok=True)
+    
+    indications_dir = data_dir / 'indications'
+    indications_dir.mkdir(exist_ok=True)
     
     all_baselines = {}
     
@@ -269,7 +394,7 @@ def main():
         all_baselines[indication] = baseline
         
         # Save baseline results
-        output_path = data_dir / f'{indication}.pickle'
+        output_path = indications_dir / f'{indication}.pickle'
         with open(output_path, 'wb') as f:
             pickle.dump(baseline, f)
         print(f"✓ Saved baseline statistics to {output_path}")
@@ -278,7 +403,18 @@ def main():
         create_heatmap_grid(baseline, indication)
     
     # Generate combined plot across all indications
-    create_combined_baseline_plot(all_baselines)
+    plot_df = create_combined_baseline_plot(all_baselines)
+
+    # Combine baseline and predictions dataframes
+    combined_df = combine_baseline_and_predictions(
+        baseline_df=plot_df,
+        predictions_df=predictions_df
+    )
+
+    combined_df.to_csv(data_dir / 'for_paper.csv', index=False)
+
+    # Generate baseline comparison plot
+    create_baseline_comparison_plot(combined_df)
     
     print("\n✓ All baselines computed and visualized")
 

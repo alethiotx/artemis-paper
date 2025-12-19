@@ -168,7 +168,8 @@ workflow {
 
     // Compute baseline statistics by indication
     baselines(
-      targets.out.pickle
+      targets.out.pickle,
+      combine.out.combined_csv
     )
 
     // Generate consensus predictions across KGs for SABCS targets
@@ -183,7 +184,8 @@ workflow {
 
     // Compute baseline statistics by indication
     baselines(
-      's3://alethiotx-artemis/figs/predicted_targets/all_targets.pickle'
+      's3://alethiotx-artemis/figs/predicted_targets/all_targets.pickle',
+      's3://alethiotx-artemis/figs/predictions/data/all.csv'
     )
 
     // Generate consensus predictions across KGs for SABCS targets
