@@ -384,3 +384,4 @@ See the `alethiotx` package documentation for full API reference.
 - Public knowledge graph providers (Hetionet, OpenBioLink, PrimeKG)
 - ChEMBL and MeSH data sources
 - PyKEEN, scikit-learn, and Nextflow communities
+- Code cleaned up and improved by GitHub Copilot (Claude Sonnet 4.5)
