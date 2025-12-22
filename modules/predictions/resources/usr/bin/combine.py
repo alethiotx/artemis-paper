@@ -49,8 +49,16 @@ INDICATION_ORDER = ['breast', 'lung', 'bowel', 'prostate', 'melanoma', 'diabetes
 # Main text heatmap configuration
 MAIN_TEXT_CONFIG = {
     'kg': 'hetionet',
-    'ct': 'Unique',
+    'ct': 'All',
     'rf_threshold': '0.5',
+    'pg_number': '0'
+}
+
+# Second subfigure configuration
+MAIN_TEXT_CONFIG_2 = {
+    'kg': 'hetionet',
+    'ct': 'Unique',
+    'rf_threshold': '0.7',
     'pg_number': '0'
 }
 
@@ -329,25 +337,48 @@ def create_main_text_heatmap(results: Dict) -> None:
     
     print("Generating main text heatmap...")
     
-    config = MAIN_TEXT_CONFIG
-    data = results[config['kg']][config['ct']][config['rf_threshold']][config['pg_number']]
-    heatmap_data = data.T.round(0).astype(int)
+    # Create figure with 2 subfigures
+    fig, axes = plt.subplots(ncols=2, nrows=1, sharey=True, sharex=True, figsize=(8, 4))
     
-    fig, ax = plt.subplots(ncols=1, nrows=1, sharey=True, sharex=True, figsize=(4, 3.5))
+    # First subfigure (All CT, RF 0.5)
+    config1 = MAIN_TEXT_CONFIG
+    data1 = results[config1['kg']][config1['ct']][config1['rf_threshold']][config1['pg_number']]
+    heatmap_data1 = data1.T.round(0).astype(int)
     
     sns.heatmap(
-        heatmap_data,
+        heatmap_data1,
         annot=True,
         fmt='d',
         cbar=True,
-        ax=ax,
+        ax=axes[0],
         vmin=HEATMAP_VMIN,
         vmax=HEATMAP_VMAX,
         center=HEATMAP_CENTER,
         cmap=HEATMAP_CMAP
     )
     
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=60)
+    axes[0].set_xticklabels(axes[0].get_xticklabels(), rotation=60)
+    axes[0].set_title(f"{config1['ct']} Clinical Targets, RF {config1['rf_threshold']}", fontsize=10)
+    
+    # Second subfigure (Unique CT, RF 0.7)
+    config2 = MAIN_TEXT_CONFIG_2
+    data2 = results[config2['kg']][config2['ct']][config2['rf_threshold']][config2['pg_number']]
+    heatmap_data2 = data2.T.round(0).astype(int)
+    
+    sns.heatmap(
+        heatmap_data2,
+        annot=True,
+        fmt='d',
+        cbar=True,
+        ax=axes[1],
+        vmin=HEATMAP_VMIN,
+        vmax=HEATMAP_VMAX,
+        center=HEATMAP_CENTER,
+        cmap=HEATMAP_CMAP
+    )
+    
+    axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=60)
+    axes[1].set_title(f"{config2['ct']} Clinical Targets, RF {config2['rf_threshold']}", fontsize=10)
     
     plt.tight_layout()
     plt.savefig(heatmaps_dir / 'for_main_text.png')
