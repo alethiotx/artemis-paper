@@ -172,6 +172,8 @@ def main():
                 shuffle,
                 targets
             )
+            for r in result_list:
+                r['embedding'] = embedding
             results.extend(result_list)
     
     # Compile results
@@ -180,7 +182,7 @@ def main():
     # Save output
     output_dir = Path('data')
     output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / f'{n_features}.csv'
+    output_path = output_dir / f'{n_features}_{embedding}.csv'
     df_results.to_csv(output_path, index=False)
     print(f"✓ Results saved to {output_path}")
 

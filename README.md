@@ -145,6 +145,41 @@ Create UpSet plots showing target overlap across knowledge graphs and filtering 
 nextflow run main.nf --mode upset
 ```
 
+### 8. `negative_sampling`
+Robustness analyses for the negative sampling strategy, addressing reviewer concerns about unlabeled genes being treated as negatives.
+
+**Analyses:**
+- **Sensitivity analysis**: Measures AUROC variance, per-gene prediction stability, and pairwise Jaccard similarity of predicted target sets across the 10 training iterations (each using different random negatives). Runs across all KG × embedding × CT filter × pathway gene combinations.
+- **Confident negative selection**: Two-step experiment where an initial RF model scores all unlabeled genes, then only genes with low predicted probability (bottom 25th percentile) are retained as "reliable" negatives for retraining. Compares AUROC and target overlap against the standard approach across the full parameter grid.
+
+**Prerequisites:** Clinical scores and pathway genes must already exist on S3 (run `--mode scores` first if needed). Requires rebuilding the Docker image after adding `pyarrow` to `requirements.txt`.
+
+**Usage:**
+```bash
+nextflow run main.nf --mode negative_sampling
+```
+
+**Outputs:**
+```
+s3://alethiotx-artemis/figs_review/
+├── sensitivity_analysis/
+│   ├── data/
+│   │   ├── auroc_variance.csv         # AUROC mean ± SD per KG/embedding/indication
+│   │   ├── gene_stability.csv         # Per-gene prediction frequency summary
+│   │   └── jaccard_similarity.csv     # Pairwise Jaccard between iteration target sets
+│   └── plots/
+│       ├── auroc_variance.png         # AUROC variance across iterations
+│       ├── gene_stability.png         # Distribution of gene prediction stability
+│       └── jaccard_*.png              # Pairwise Jaccard heatmaps per indication/KG
+└── confident_negatives/
+    ├── data/
+    │   ├── confident_neg_auroc.csv    # AUROC comparison (standard vs confident)
+    │   └── confident_neg_overlap.csv  # Target set overlap between approaches
+    └── plots/
+        ├── auroc_comparison.png       # Side-by-side AUROC bars
+        └── overlap_comparison.png     # Jaccard overlap heatmap
+```
+
 ---
 
 ## Configuration
@@ -239,13 +274,15 @@ main.nf
 │   ├── pathway_genes/     # Reactome/KEGG enrichment
 │   ├── cv/                # Cross-validation experiments
 │   ├── predictions/       # Target prediction + ranking
-│   │   ├── compute.py         # Generate predictions per parameter combo
-│   │   ├── combine.py         # Aggregate prediction overlaps
-│   │   ├── targets.py         # Aggregate target probabilities
-│   │   ├── training_sets.py   # Aggregate training labels
-│   │   ├── baselines.py       # Compute baseline statistics
-│   │   ├── sabcs.py           # SABCS overlap analysis
-│   │   └── consensus_sabcs.py # Consensus predictions for SABCS
+│   │   ├── compute.py             # Generate predictions per parameter combo
+│   │   ├── combine.py             # Aggregate prediction overlaps
+│   │   ├── targets.py             # Aggregate target probabilities
+│   │   ├── training_sets.py       # Aggregate training labels
+│   │   ├── baselines.py           # Compute baseline statistics
+│   │   ├── sabcs.py               # SABCS overlap analysis
+│   │   ├── consensus_sabcs.py     # Consensus predictions for SABCS
+│   │   ├── sensitivity_analysis.py # Negative sampling sensitivity analysis
+│   │   └── confident_negatives.py  # Confident negative selection experiment
 │   ├── upset/             # Set overlap visualization
 │   └── kgs/               # KG summary notebook
 └── conf/
@@ -260,6 +297,7 @@ main.nf
 ### Core Python Packages
 - `pandas`, `numpy`, `scipy`: Data manipulation
 - `scikit-learn`: ML models (Random Forest, SVM)
+- `pyarrow`: Parquet file I/O for knowledge graph features
 - `pykeen==1.11.1`: Knowledge graph embeddings
 - `alethiotx>=2.0.9`: Proprietary data access utilities
 - `plotnine`: ggplot2-style visualization for publication-ready plots
