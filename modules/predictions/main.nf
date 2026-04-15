@@ -181,6 +181,52 @@ process sabcs {
 }
 
 /**
+ * Negative sampling sensitivity analysis
+ *
+ * Quantifies how sensitive model predictions are to the random draw of
+ * negative samples by measuring AUROC variance, per-gene prediction stability,
+ * and Jaccard similarity across training iterations.
+ */
+process sensitivity_analysis {
+  label 'sensitivity'
+  publishDir params.outdir + '/figs_review/sensitivity_analysis', mode: 'copy'
+  
+  output:
+    path 'data/*'
+    path 'plots/*'
+  
+  script:
+  """
+  mkdir -p data plots
+  
+  sensitivity_analysis.py ${params.scores_date}
+  """
+}
+
+/**
+ * Confident negative selection experiment
+ *
+ * Two-step robustness check comparing standard random negatives against
+ * negatives selected by an initial model as having low target probability.
+ * Compares AUROC and predicted target overlap between approaches.
+ */
+process confident_negatives {
+  label 'confident_negatives'
+  publishDir params.outdir + '/figs_review/confident_negatives', mode: 'copy'
+  
+  output:
+    path 'data/*'
+    path 'plots/*'
+  
+  script:
+  """
+  mkdir -p data plots
+  
+  confident_negatives.py ${params.scores_date}
+  """
+}
+
+/**
  * Generate consensus predictions across knowledge graphs for SABCS targets
  *
  * Computes consensus predictions by averaging target probabilities across all

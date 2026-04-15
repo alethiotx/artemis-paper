@@ -72,10 +72,10 @@ def load_data(kg: str, embedding: str, indication: str, date: str) -> tuple[pd.D
     tuple[pd.DataFrame, pd.DataFrame]
         KG feature matrix and clinical scores DataFrame
     """
-    kg_path = f's3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{kg}/{embedding}/summarize/predictions.csv'
+    kg_path = f's3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{kg}/{embedding}/summarize/predictions.parquet'
     scores_path = f's3://alethiotx-artemis/data/clinical_scores/{date}/{indication}.csv'
     
-    kg_features = pd.read_csv(kg_path, index_col=0)
+    kg_features = pd.read_parquet(kg_path)
     clinical_scores = pd.read_csv(scores_path)
     
     return kg_features, clinical_scores

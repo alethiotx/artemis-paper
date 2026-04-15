@@ -342,8 +342,8 @@ def main():
     
     # Load knowledge graph features
     print("Loading knowledge graph features...")
-    kg_path = f"s3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{config['kg']}/{config['embedding']}/summarize/predictions.csv"
-    kg_features = pd.read_csv(kg_path, index_col=0)
+    kg_path = f"s3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{config['kg']}/{config['embedding']}/summarize/predictions.parquet"
+    kg_features = pd.read_parquet(kg_path)
     
     # Load clinical data
     print("Loading clinical trial data...")
