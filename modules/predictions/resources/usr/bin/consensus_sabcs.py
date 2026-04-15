@@ -113,20 +113,26 @@ def compute_consensus(results: Dict, sabcs_targets: List[str]) -> Dict:
                 kg_results = []
                 
                 for kg in KNOWLEDGE_GRAPHS:
-                    # Concatenate all iterations for this KG (sort iteration keys for determinism)
-                    iterations_df = pd.concat(
-                        [results[ct][rf_threshold][pg_number][kg][iter_key] 
-                         for iter_key in sorted(results[ct][rf_threshold][pg_number][kg].keys())],
-                        axis=1
-                    )
-                    
-                    # Filter to SABCS targets and average across iterations
-                    consensus = iterations_df[iterations_df.index.isin(sabcs_targets)].mean(axis=1)
-                    kg_results.append(consensus)
+                    for embedding in sorted(results[ct][rf_threshold][pg_number][kg].keys()):
+                        # Concatenate all iterations for this KG+embedding (sort iteration keys for determinism)
+                        iterations_df = pd.concat(
+                            [results[ct][rf_threshold][pg_number][kg][embedding][iter_key] 
+                             for iter_key in sorted(results[ct][rf_threshold][pg_number][kg][embedding].keys())],
+                            axis=1
+                        )
+                        
+                        # Filter to SABCS targets and average across iterations
+                        consensus = iterations_df[iterations_df.index.isin(sabcs_targets)].mean(axis=1)
+                        kg_results.append(consensus)
                 
-                # Combine all KGs into single DataFrame
+                # Combine all KG+embedding combos into single DataFrame
+                kg_embedding_labels = [
+                    f"{kg}_{embedding}"
+                    for kg in KNOWLEDGE_GRAPHS
+                    for embedding in sorted(results[ct][rf_threshold][pg_number][kg].keys())
+                ]
                 combined = pd.concat(kg_results, axis=1)
-                combined.columns = KNOWLEDGE_GRAPHS
+                combined.columns = kg_embedding_labels
                 
                 results[ct][rf_threshold][pg_number] = combined
     
@@ -210,13 +216,14 @@ def generate_heatmaps(results: Dict) -> None:
         
         data = results[ct][rf_threshold][pg_number]
         
-        # Standard clustermap (all KGs)
+        # Standard clustermap (all KG+embedding combos)
         create_clustered_heatmap(data, pg_number, plots_dir)
         print(f"    ✓ clustermap_{pg_number}.png")
         
         # Filtered clustermap (no BioKG)
-        # Select targets present in hetionet, openbiolink, and primekg (ignore biokg completely)
-        filtered_data_no_biokg = data[['hetionet', 'openbiolink', 'primekg']]
+        # Select columns not starting with 'biokg'
+        non_biokg_cols = [c for c in data.columns if not c.startswith('biokg')]
+        filtered_data_no_biokg = data[non_biokg_cols]
         filtered_data_no_biokg = filtered_data_no_biokg[~filtered_data_no_biokg.isna().any(axis=1)]
         
         if len(filtered_data_no_biokg) > 0:

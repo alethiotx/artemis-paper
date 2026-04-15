@@ -14,13 +14,13 @@
  * @param usecase Analysis type (binary, multiclass, regression)
  */
 process cv {
-  tag "${kg}-${indication}-${usecase}"
+  tag "${kg}-${embedding}-${indication}-${usecase}"
   label 'cv'
 
-  publishDir params.outdir + '/figs/cv', mode: 'copy'
+  publishDir params.outdir + '/figs_review/cv', mode: 'copy'
   
   input:
-    tuple val(kg), val(indication), val(usecase)
+    tuple val(kg), val(embedding), val(indication), val(usecase)
   
   output:
     path 'data/*.csv', emit: csv
@@ -28,11 +28,11 @@ process cv {
   script:
   """
   if [[ "${usecase}" == "binary" ]]; then
-    binary.py ${kg} ${indication} ${params.scores_date}
+    binary.py ${kg} ${embedding} ${indication} ${params.scores_date}
   elif [[ "${usecase}" == "multiclass" ]]; then
-    multiclass.py ${kg} ${indication} ${params.scores_date}
+    multiclass.py ${kg} ${embedding} ${indication} ${params.scores_date}
   elif [[ "${usecase}" == "regression" ]]; then
-    regression.py ${kg} ${indication} ${params.scores_date}
+    regression.py ${kg} ${embedding} ${indication} ${params.scores_date}
   else
     echo "Unknown usecase parameter: ${usecase}"
     exit 1
@@ -51,7 +51,7 @@ process cv {
  * @param csv Collection of CV result CSV files from all cv processes
  */
 process cv_combine {
-  publishDir params.outdir + '/figs/cv', mode: 'copy'
+  publishDir params.outdir + '/figs_review/cv', mode: 'copy'
   
   input:
     file csv
@@ -77,20 +77,20 @@ process cv_combine {
  * @param subsample Feature subsample size to evaluate
  */
 process range {
-  tag "${subsample}"
+  tag "${subsample}-${embedding}"
   label 'cv_range'
 
-  publishDir params.outdir + '/figs/cv_range', mode: 'copy'
+  publishDir params.outdir + '/figs_review/cv_range', mode: 'copy'
   
   input:
-    val subsample
+    tuple val(subsample), val(embedding)
   
   output:
     path 'data/*.csv', emit: csv
   
   script:
   """
-  range.py ${subsample} ${params.scores_date}
+  range.py ${subsample} ${embedding} ${params.scores_date}
   """
 }
 
@@ -105,7 +105,7 @@ process range {
  * @param csv Collection of feature range CSV files from all range processes
  */
 process range_combine {
-  publishDir params.outdir + '/figs/cv_range', mode: 'copy'
+  publishDir params.outdir + '/figs_review/cv_range', mode: 'copy'
   
   input:
     file csv

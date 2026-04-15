@@ -7,10 +7,11 @@ drug targets across multiple disease indications, validates against clinical
 trials, and compares predictions with SABCS breast cancer targets.
 
 Usage:
-    compute.py <kg> <ct_unique> <rf_threshold> <pg_number> <iteration> <date>
+    compute.py <kg> <embedding> <ct_unique> <rf_threshold> <pg_number> <iteration> <date>
 
 Arguments:
     kg: Knowledge graph name (e.g., 'hetionet', 'biokg')
+    embedding: Embedding method (e.g., 'ComplEx', 'DistMult', 'RotatE', 'TransE')
     ct_unique: Clinical trial filter ('All', 'Approved', or 'Unique')
     rf_threshold: Probability threshold for target classification (0.0-1.0)
     pg_number: Number of pathway genes to include (0 = none)
@@ -61,17 +62,18 @@ def parse_arguments() -> Dict[str, any]:
     Dict[str, any]
         Configuration dictionary with parsed arguments
     """
-    if len(sys.argv) != 7:
+    if len(sys.argv) != 8:
         print(__doc__)
         sys.exit(1)
     
     return {
         'kg': sys.argv[1],
-        'ct_unique': sys.argv[2],
-        'rf_threshold': float(sys.argv[3]),
-        'pg_number': int(sys.argv[4]),
-        'iteration': int(sys.argv[5]),
-        'scores_date': sys.argv[6]
+        'embedding': sys.argv[2],
+        'ct_unique': sys.argv[3],
+        'rf_threshold': float(sys.argv[4]),
+        'pg_number': int(sys.argv[5]),
+        'iteration': int(sys.argv[6]),
+        'scores_date': sys.argv[7]
     }
 
 def build_filename(config: Dict[str, any]) -> str:
@@ -89,7 +91,7 @@ def build_filename(config: Dict[str, any]) -> str:
         Formatted filename base
     """
     return (
-        f"{config['kg']}_{config['ct_unique']}_"
+        f"{config['kg']}_{config['embedding']}_{config['ct_unique']}_"
         f"{config['rf_threshold']}_{config['pg_number']}_"
         f"{config['iteration']}.csv"
     )
@@ -328,6 +330,7 @@ def main():
     
     print(f"Configuration:")
     print(f"  KG: {config['kg']}")
+    print(f"  Embedding: {config['embedding']}")
     print(f"  Clinical trial filter: {config['ct_unique']}")
     print(f"  RF threshold: {config['rf_threshold']}")
     print(f"  Pathway genes: {config['pg_number']}")
@@ -339,7 +342,7 @@ def main():
     
     # Load knowledge graph features
     print("Loading knowledge graph features...")
-    kg_path = f"s3://alethiotx-artemis/data/kgs/associations/{config['kg']}/summarize/predictions.csv"
+    kg_path = f"s3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{config['kg']}/{config['embedding']}/summarize/predictions.csv"
     kg_features = pd.read_csv(kg_path, index_col=0)
     
     # Load clinical data

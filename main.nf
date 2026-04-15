@@ -43,6 +43,13 @@ workflow {
     'primekg'
   )
 
+  embeddings = Channel.of(
+    'ComplEx',
+    'DistMult',
+    'RotatE',
+    'TransE'
+  )
+
   // ─── Knowledge Graph Overview ─────────────────────────────────────────────
   
   if (params.mode == 'kgs') {
@@ -91,9 +98,10 @@ workflow {
       'regression'
     )
     
-    // Run CV across all KG x indication x use case combinations
+    // Run CV across all KG x embedding x indication x use case combinations
     cv(
       kgs
+        .combine(embeddings)
         .combine(indications)
         .combine(usecases)
     )
@@ -109,6 +117,7 @@ workflow {
     
     range(
       subsample
+        .combine(embeddings)
     )
 
     // Combine feature range results with polynomial smoothing
@@ -136,6 +145,7 @@ workflow {
     // Generate predictions across all parameter combinations
     compute(
       kgs
+        .combine(embeddings)
         .combine(ct_unique)
         .combine(probs)
         .combine(p_genes)
@@ -184,13 +194,13 @@ workflow {
 
     // Compute baseline statistics by indication
     baselines(
-      's3://alethiotx-artemis/figs/predicted_targets/all_targets.pickle',
-      's3://alethiotx-artemis/figs/predictions/data/all.csv'
+      's3://alethiotx-artemis/figs_review/predicted_targets/all_targets.pickle',
+      's3://alethiotx-artemis/figs_review/predictions/data/all.csv'
     )
 
     // Generate consensus predictions across KGs for SABCS targets
     sabcs_consensus(
-      's3://alethiotx-artemis/figs/predicted_targets/all_targets.pickle'
+      's3://alethiotx-artemis/figs_review/predicted_targets/all_targets.pickle'
     )
   }
 

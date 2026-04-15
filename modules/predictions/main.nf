@@ -13,13 +13,13 @@
  * @param iteration Cross-validation iteration number (1-10)
  */
 process compute {
-  tag "${kg}-${ct_unique}-${probs}-${p_genes}-${iteration}"
+  tag "${kg}-${embedding}-${ct_unique}-${probs}-${p_genes}-${iteration}"
   
-  // publishDir params.outdir + '/figs/predictions', mode: 'copy', pattern: 'targets/*.csv'
-  // publishDir params.outdir + '/figs/predictions', mode: 'copy', pattern: 'training/*.csv'
+  // publishDir params.outdir + '/figs_review/predictions', mode: 'copy', pattern: 'targets/*.csv'
+  // publishDir params.outdir + '/figs_review/predictions', mode: 'copy', pattern: 'training/*.csv'
   
   input:
-    tuple val(kg), val(ct_unique), val(probs), val(p_genes), val(iteration)
+    tuple val(kg), val(embedding), val(ct_unique), val(probs), val(p_genes), val(iteration)
   
   output:
     path('predictions/*.csv'), emit: predictions
@@ -33,6 +33,7 @@ process compute {
   
   compute.py \\
     ${kg} \\
+    ${embedding} \\
     ${ct_unique} \\
     ${probs} \\
     ${p_genes} \\
@@ -51,7 +52,7 @@ process compute {
  * @param csv Collection of prediction CSV files from all compute iterations
  */
 process pr_combine {
-  publishDir params.outdir + '/figs/predictions', mode: 'copy'
+  publishDir params.outdir + '/figs_review/predictions', mode: 'copy'
   
   input:
     path(csv)
@@ -81,7 +82,7 @@ process pr_combine {
  */
 process targets {
   label 'targets'
-  publishDir params.outdir + '/figs/predicted_targets', mode: 'copy'
+  publishDir params.outdir + '/figs_review/predicted_targets', mode: 'copy'
   
   input:
     path(csv)
@@ -107,7 +108,7 @@ process targets {
  */
 process training_sets {
   label 'training'
-  publishDir params.outdir + '/figs/training_sets', mode: 'copy'
+  publishDir params.outdir + '/figs_review/training_sets', mode: 'copy'
   
   input:
     path(csv)
@@ -133,7 +134,7 @@ process training_sets {
  */
 process baselines {
   label 'baselines'
-  publishDir params.outdir + '/figs/baselines', mode: 'copy'
+  publishDir params.outdir + '/figs_review/baselines', mode: 'copy'
   
   input:
     path(pickle)
@@ -162,7 +163,7 @@ process baselines {
  * @param csv Collection of SABCS overlap CSV files from compute processes
  */
 process sabcs {
-  publishDir params.outdir + '/figs/sabcs', mode: 'copy'
+  publishDir params.outdir + '/figs_review/sabcs', mode: 'copy'
   
   input:
     path(csv)
@@ -191,7 +192,7 @@ process sabcs {
  */
 process sabcs_consensus {
   label 'sabcs_consensus'
-  publishDir params.outdir + '/figs/sabcs_consensus', mode: 'copy'
+  publishDir params.outdir + '/figs_review/sabcs_consensus', mode: 'copy'
   
   input:
     path(pickle)

@@ -6,10 +6,11 @@ Evaluates regression performance of Linear Regression and KNN Regressor
 on knowledge graph features for continuous drug target prediction.
 
 Usage:
-    regression.py <kg> <indication> <date>
+    regression.py <kg> <embedding> <indication> <date>
 
 Arguments:
     kg: Knowledge graph name (e.g., 'hetionet', 'biokg')
+    embedding: Embedding method (e.g., 'ComplEx', 'DistMult', 'RotatE', 'TransE')
     indication: Disease indication (e.g., 'breast', 'diabetes')
     date: Clinical scores date (YYYY-MM-DD format)
 
@@ -52,7 +53,7 @@ TARGET_CONFIGS = [
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
-def load_data(kg: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_data(kg: str, embedding: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Load knowledge graph features and clinical scores.
     
@@ -60,6 +61,8 @@ def load_data(kg: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.Dat
     ----------
     kg : str
         Knowledge graph name
+    embedding : str
+        Embedding method name
     indication : str
         Disease indication
     date : str
@@ -70,7 +73,7 @@ def load_data(kg: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.Dat
     tuple[pd.DataFrame, pd.DataFrame]
         KG feature matrix and clinical scores DataFrame
     """
-    kg_path = f's3://alethiotx-artemis/data/kgs/associations/{kg}/summarize/predictions.csv'
+    kg_path = f's3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{kg}/{embedding}/summarize/predictions.csv'
     scores_path = f's3://alethiotx-artemis/data/clinical_scores/{date}/{indication}.csv'
     
     kg_features = pd.read_csv(kg_path, index_col=0)
@@ -138,15 +141,15 @@ def evaluate_regressor(
 def main():
     """Execute regression cross-validation."""
     # Parse command-line arguments
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         print(__doc__)
         sys.exit(1)
     
-    kg, indication, date = sys.argv[1:4]
+    kg, embedding, indication, date = sys.argv[1:5]
     
     # Load data
-    print(f"Loading data for {kg} / {indication} ({date})...")
-    kg_features, clinical_scores = load_data(kg, indication, date)
+    print(f"Loading data for {kg} / {embedding} / {indication} ({date})...")
+    kg_features, clinical_scores = load_data(kg, embedding, indication, date)
     
     # Run all evaluation combinations
     results: List[Dict[str, Any]] = []
@@ -171,7 +174,7 @@ def main():
     # Save output
     output_dir = Path('data')
     output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / f'{kg}_{indication}_regression.csv'
+    output_path = output_dir / f'{kg}_{embedding}_{indication}_regression.csv'
     df_results.to_csv(output_path, index=False)
     print(f"✓ Results saved to {output_path}")
 

@@ -62,55 +62,56 @@ PLOT_CONFIGS = [
         'filter': lambda df: df['targets'] == 'Real',
         'fill': 'kg',
         'color': 'kg',
-        'facet': '~scoring+bins',
+        'facet': 'embedding~scoring+bins',
         'ylim': (0, 1),
         'width': 16,
-        'height': 5
+        'height': 12
     },
     {
         'name': 'all_indications',
         'filter': lambda df: df['targets'] == 'Real',
         'fill': 'indication',
         'color': 'indication',
-        'facet': 'kg~scoring+bins',
+        'facet': 'kg+embedding~scoring+bins',
         'ylim': (0, 1),
         'width': 16,
-        'height': 9
+        'height': 24
     },
     {
         'name': 'all_baseline',
         'filter': lambda df: df['targets'] == 'Random',
         'fill': 'indication',
         'color': 'indication',
-        'facet': 'kg~scoring+bins',
+        'facet': 'kg+embedding~scoring+bins',
         'ylim': (-1, 1),
         'width': 16,
-        'height': 9
+        'height': 24
     }
 ]
 
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
-def parse_filename(filepath: str) -> Tuple[str, str]:
+def parse_filename(filepath: str) -> Tuple[str, str, str]:
     """
-    Extract knowledge graph and indication from filename.
+    Extract knowledge graph, embedding, and indication from filename.
     
     Parameters
     ----------
     filepath : str
-        Path to CV results file (format: <kg>_<indication>_<type>.csv)
+        Path to CV results file (format: <kg>_<embedding>_<indication>_<type>.csv)
     
     Returns
     -------
-    Tuple[str, str]
-        Knowledge graph name and indication
+    Tuple[str, str, str]
+        Knowledge graph name, embedding method, and indication
     """
     filename = Path(filepath).name
     parts = filename.split('_')
     kg = parts[0]
-    indication = parts[1]
-    return kg, indication
+    embedding = parts[1]
+    indication = parts[2]
+    return kg, embedding, indication
 
 
 def load_and_annotate_file(filepath: str) -> pd.DataFrame:
@@ -125,13 +126,14 @@ def load_and_annotate_file(filepath: str) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        DataFrame with added 'kg' and 'indication' columns
+        DataFrame with added 'kg', 'embedding', and 'indication' columns
     """
-    kg, indication = parse_filename(filepath)
+    kg, embedding, indication = parse_filename(filepath)
     
     df = pd.read_csv(filepath)
     df = df.reindex(sorted(df.columns), axis=1)
     df['kg'] = kg
+    df['embedding'] = embedding
     df['indication'] = indication
     
     return df
