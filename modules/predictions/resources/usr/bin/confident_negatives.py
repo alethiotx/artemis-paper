@@ -80,12 +80,15 @@ def prepare_confident_negatives(kg_features, clinical_scores, known_targets, ran
         kg_features, clinical_scores,
         known_targets=known_targets, rand_seed=rand_seed
     )
-    initial_clf = RandomForestClassifier(random_state=rand_seed)
+    initial_clf = RandomForestClassifier(random_state=rand_seed, n_jobs=1)
     initial_clf.fit(initial_data['X'], initial_data['y_binary'])
+    del initial_data
 
     # Step 2: Score all KG genes
     all_probs = initial_clf.predict_proba(kg_features)[:, 1]
+    del initial_clf
     prob_series = pd.Series(all_probs, index=kg_features.index)
+    del all_probs
 
     positive_genes = clinical_scores['Target Gene'].tolist()
     unlabeled_mask = (
@@ -93,9 +96,12 @@ def prepare_confident_negatives(kg_features, clinical_scores, known_targets, ran
         ~kg_features.index.isin(known_targets)
     )
     unlabeled_probs = prob_series[unlabeled_mask]
+    del prob_series
 
     threshold = unlabeled_probs.quantile(CONFIDENT_NEG_QUANTILE)
     reliable_negatives = unlabeled_probs[unlabeled_probs <= threshold].index.tolist()
+    del unlabeled_probs
+    gc.collect()
 
     # Step 3: Re-prepare with restricted negative pool
     y = clinical_scores[['Target Gene', 'Clinical Score']].copy()
@@ -142,18 +148,22 @@ def run_comparison(kg_features, clinical_data, known_targets, kg, embedding):
                 kg_features, clinical_data[indication],
                 known_targets=known_targets, rand_seed=iteration
             )
-            std_clf = RandomForestClassifier(random_state=iteration)
+            std_clf = RandomForestClassifier(random_state=iteration, n_jobs=1)
             std_clf.fit(std_data['X'], std_data['y_binary'])
+            del std_data
             std_probs = std_clf.predict_proba(kg_features)[:, 1]
+            del std_clf
             std_targets = set(kg_features.index[std_probs >= RF_THRESHOLD])
 
             # Confident negative model
             conf_data = prepare_confident_negatives(
                 kg_features, clinical_data[indication], known_targets, iteration
             )
-            conf_clf = RandomForestClassifier(random_state=iteration)
+            conf_clf = RandomForestClassifier(random_state=iteration, n_jobs=1)
             conf_clf.fit(conf_data['X'], conf_data['y_binary'])
+            del conf_data
             conf_probs = conf_clf.predict_proba(kg_features)[:, 1]
+            del conf_clf
             conf_targets = set(kg_features.index[conf_probs >= RF_THRESHOLD])
 
             # Compare
@@ -163,6 +173,8 @@ def run_comparison(kg_features, clinical_data, known_targets, kg, embedding):
 
             # Probability correlation
             prob_corr = np.corrcoef(std_probs, conf_probs)[0, 1]
+            del std_probs, conf_probs
+            gc.collect()
 
             rows.append({
                 'kg': kg,

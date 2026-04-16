@@ -137,13 +137,18 @@ def compute_stability_and_jaccard(kg_features, clinical_data, known_targets,
                 rand_seed=iteration
             )
 
-            clf = RandomForestClassifier(random_state=iteration)
+            clf = RandomForestClassifier(random_state=iteration, n_jobs=1)
             clf.fit(training_data['X'], training_data['y_binary'])
+            del training_data
 
             probs = clf.predict_proba(kg_features)[:, 1]
+            del clf
+            gc.collect()
+
             predicted_mask = probs >= RF_THRESHOLD
             gene_hits += predicted_mask.astype(int)
             target_sets.append(set(kg_features.index[predicted_mask]))
+            del probs, predicted_mask
 
         # Gene stability
         stability = gene_hits / N_ITERATIONS
