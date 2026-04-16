@@ -31,6 +31,8 @@ import sys
 from pathlib import Path
 from itertools import combinations
 
+import gc
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -276,6 +278,9 @@ def main():
             )
             all_stability_rows.extend(stability_rows)
             all_jaccard_rows.extend(jaccard_rows)
+
+            del kg_features, clinical_data, known_targets
+            gc.collect()
 
     stability_df = pd.DataFrame(all_stability_rows)
     stability_df.to_csv(data_dir / 'gene_stability.csv', index=False)

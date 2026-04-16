@@ -26,6 +26,8 @@ Output:
 import sys
 from pathlib import Path
 
+import gc
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -248,6 +250,9 @@ def main():
 
             rows = run_comparison(kg_features, clinical_data, known_targets, kg, embedding)
             all_rows.extend(rows)
+
+            del kg_features, clinical_data, known_targets
+            gc.collect()
 
     df = pd.DataFrame(all_rows)
     df.to_csv(data_dir / 'confident_neg_comparison.csv', index=False)
