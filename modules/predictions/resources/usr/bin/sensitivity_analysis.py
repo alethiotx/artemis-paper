@@ -48,6 +48,8 @@ from alethiotx.artemis.pathway.genes import unique as unique_pathway_genes
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
+MAX_CV_FOLDS = 5
+
 INDICATIONS = ['breast', 'lung', 'bowel', 'prostate', 'melanoma', 'diabetes', 'cardiovascular']
 KGS = ['hetionet', 'biokg', 'openbiolink', 'primekg']
 EMBEDDINGS = ['ComplEx', 'DistMult', 'RotatE', 'TransE']
@@ -116,12 +118,21 @@ def compute_auroc_variance(kg_features, clinical_data, known_targets, pathway_ge
             )
 
             clf = RandomForestClassifier(random_state=iteration)
-            cv = StratifiedKFold()
+            min_class = int(training_data['y_binary'].value_counts().min())
+            n_splits = min(MAX_CV_FOLDS, min_class)
+            if n_splits < 2:
+                print(f"    Skipping {indication} iter {iteration}: too few samples (min_class={min_class})")
+                continue
+            cv = StratifiedKFold(n_splits=n_splits)
             auroc = np.mean(cross_val_score(
                 clf, training_data['X'], training_data['y_binary'],
                 scoring='roc_auc', cv=cv
             ))
             scores_per_iter.append(auroc)
+
+        if not scores_per_iter:
+            print(f"    No valid iterations for {indication}, skipping")
+            continue
 
         results.append({
             'kg': kg,

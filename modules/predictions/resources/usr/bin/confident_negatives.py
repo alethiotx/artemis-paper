@@ -51,6 +51,7 @@ CT_FILTERS = ['All', 'Unique', 'Approved']
 RF_THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9]
 PG_NUMBERS = [0, 100, 300]
 N_ITERATIONS = 10
+MAX_CV_FOLDS = 5
 CONFIDENT_NEG_QUANTILE = 0.25  # Bottom 25% of predicted probabilities
 
 
@@ -207,7 +208,12 @@ def run_comparison(kg_features, clinical_data, known_targets, pathway_genes_map,
                 kg_features, clinical_data[indication], **prepare_kwargs
             )
             clf = RandomForestClassifier(random_state=iteration)
-            cv = StratifiedKFold()
+            min_class_std = int(standard_data['y_binary'].value_counts().min())
+            n_splits = min(MAX_CV_FOLDS, min_class_std)
+            if n_splits < 2:
+                print(f"    Skipping {indication} iter {iteration}: too few samples (min_class={min_class_std})")
+                continue
+            cv = StratifiedKFold(n_splits=n_splits)
             std_auroc = np.mean(cross_val_score(
                 clf, standard_data['X'], standard_data['y_binary'],
                 scoring='roc_auc', cv=cv
@@ -220,11 +226,21 @@ def run_comparison(kg_features, clinical_data, known_targets, pathway_genes_map,
                 pg, iteration
             )
             clf2 = RandomForestClassifier(random_state=iteration)
+            min_class_conf = int(confident_data['y_binary'].value_counts().min())
+            n_splits_conf = min(MAX_CV_FOLDS, min_class_conf)
+            if n_splits_conf < 2:
+                print(f"    Skipping confident {indication} iter {iteration}: too few samples")
+                continue
+            cv2 = StratifiedKFold(n_splits=n_splits_conf)
             conf_auroc = np.mean(cross_val_score(
                 clf2, confident_data['X'], confident_data['y_binary'],
-                scoring='roc_auc', cv=cv
+                scoring='roc_auc', cv=cv2
             ))
             confident_aurocs.append(conf_auroc)
+
+        if not standard_aurocs or not confident_aurocs:
+            print(f"    No valid iterations for {indication}, skipping")
+            continue
 
         results.append({
             'kg': kg,
