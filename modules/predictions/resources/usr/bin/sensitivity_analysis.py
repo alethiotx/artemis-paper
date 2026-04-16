@@ -8,6 +8,7 @@ a different random seed and thus different negatives).
 
 Analyses:
 1. AUROC variance across iterations per KG × embedding × indication
+   (reads existing CV results from S3 — no retraining needed)
 2. Per-gene prediction stability: fraction of iterations predicting each gene as target
 3. Core target set consistency: Jaccard similarity across iteration pairs
 
@@ -35,195 +36,146 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
 
 from alethiotx.artemis.cv.pipeline import prepare as prepare_model
 from alethiotx.artemis.clinical.scores import load as load_clinical_scores
-from alethiotx.artemis.clinical.scores import approved as approved_clinical_scores
-from alethiotx.artemis.clinical.scores import unique as unique_clinical_scores
 from alethiotx.artemis.clinical.scores import all_targets
-from alethiotx.artemis.pathway.genes import load as load_pathway_genes
-from alethiotx.artemis.pathway.genes import unique as unique_pathway_genes
 
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
-MAX_CV_FOLDS = 5
-
 INDICATIONS = ['breast', 'lung', 'bowel', 'prostate', 'melanoma', 'diabetes', 'cardiovascular']
 KGS = ['hetionet', 'biokg', 'openbiolink', 'primekg']
 EMBEDDINGS = ['ComplEx', 'DistMult', 'RotatE', 'TransE']
-CT_FILTERS = ['All', 'Unique', 'Approved']
-RF_THRESHOLDS = [0.5, 0.6, 0.7, 0.8, 0.9]
-PG_NUMBERS = [0, 100, 300]
 N_ITERATIONS = 10
-RANDOM_STATE = 42
+RF_THRESHOLD = 0.5
+
+# S3 paths
+CV_DATA_PREFIX = 's3://alethiotx-artemis/figs_review/cv/data'
+KG_DATA_PREFIX = 's3://alethiotx-artemis/data/kgs-no-data-leakage/associations'
 
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
 def load_kg_features(kg: str, embedding: str) -> pd.DataFrame:
     """Load knowledge graph features from S3."""
-    kg_path = f's3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{kg}/{embedding}/summarize/predictions.parquet'
-    return pd.read_parquet(kg_path)
+    return pd.read_parquet(f'{KG_DATA_PREFIX}/{kg}/{embedding}/summarize/predictions.parquet')
 
 
-def load_clinical_data(scores_date: str, ct_filter: str, kg_features: pd.DataFrame):
-    """Load and filter clinical scores for all indications."""
+def load_clinical_data(scores_date: str, kg_features: pd.DataFrame):
+    """Load clinical scores for all indications (All filter only)."""
     clinical_data_raw = load_clinical_scores(date=scores_date)
-
-    if ct_filter == 'Approved':
-        clinical_data_raw = approved_clinical_scores(list(clinical_data_raw))
-    elif ct_filter == 'Unique':
-        clinical_data_raw = unique_clinical_scores(list(clinical_data_raw))
-
     clinical_data = {}
     for indication, scores in zip(INDICATIONS, clinical_data_raw):
         clinical_data[indication] = scores[scores['Target Gene'].isin(kg_features.index)]
-
     known_targets = all_targets(list(clinical_data_raw))
     return clinical_data, known_targets
 
 
-def load_pathway_genes_map(scores_date: str, pg_number: int):
-    """Load pathway genes for all indications."""
-    if pg_number == 0:
-        return {ind: [] for ind in INDICATIONS}
-    pathway_genes = load_pathway_genes(date=scores_date, n=pg_number)
-    pathway_genes = unique_pathway_genes(list(pathway_genes))
-    return dict(zip(INDICATIONS, pathway_genes))
+# ─── Analysis 1: AUROC Variance (from existing CV results) ──────────────────
 
-
-# ─── Analysis 1: AUROC Variance ─────────────────────────────────────────────
-
-def compute_auroc_variance(kg_features, clinical_data, known_targets, pathway_genes_map,
-                           kg, embedding, ct_filter, pg_number):
-    """Compute AUROC across iterations for each indication."""
+def load_auroc_variance():
+    """Read existing CV binary results from S3 and compute per-iteration variance."""
     results = []
 
-    for indication in INDICATIONS:
-        scores_per_iter = []
+    for kg in KGS:
+        for embedding in EMBEDDINGS:
+            for indication in INDICATIONS:
+                csv_path = f'{CV_DATA_PREFIX}/{kg}_{embedding}_{indication}_binary.csv'
+                try:
+                    df = pd.read_csv(csv_path)
+                except FileNotFoundError:
+                    print(f"    Missing: {kg}/{embedding}/{indication}, skipping")
+                    continue
 
-        for iteration in range(1, N_ITERATIONS + 1):
-            prepare_kwargs = {
-                'known_targets': known_targets,
-                'rand_seed': iteration
-            }
-            pg = pathway_genes_map[indication]
-            if pg:
-                prepare_kwargs['pathway_genes'] = pg
+                # Filter to Real targets, Random Forest, roc_auc
+                real_rf_auroc = df[
+                    (df['targets'] == 'Real') &
+                    (df['classifier'] == 'Random Forest') &
+                    (df['scoring'] == 'roc_auc')
+                ]['score'].values
 
-            training_data = prepare_model(
-                kg_features, clinical_data[indication], **prepare_kwargs
-            )
+                if len(real_rf_auroc) == 0:
+                    continue
 
-            clf = RandomForestClassifier(random_state=iteration)
-            min_class = int(training_data['y_binary'].value_counts().min())
-            n_splits = min(MAX_CV_FOLDS, min_class)
-            if n_splits < 2:
-                print(f"    Skipping {indication} iter {iteration}: too few samples (min_class={min_class})")
-                continue
-            cv = StratifiedKFold(n_splits=n_splits)
-            auroc = np.mean(cross_val_score(
-                clf, training_data['X'], training_data['y_binary'],
-                scoring='roc_auc', cv=cv
-            ))
-            scores_per_iter.append(auroc)
+                results.append({
+                    'kg': kg,
+                    'embedding': embedding,
+                    'indication': indication,
+                    'auroc_mean': np.mean(real_rf_auroc),
+                    'auroc_std': np.std(real_rf_auroc),
+                    'auroc_min': np.min(real_rf_auroc),
+                    'auroc_max': np.max(real_rf_auroc),
+                    'auroc_range': np.max(real_rf_auroc) - np.min(real_rf_auroc),
+                    'n_iterations': len(real_rf_auroc),
+                })
 
-        if not scores_per_iter:
-            print(f"    No valid iterations for {indication}, skipping")
-            continue
-
-        results.append({
-            'kg': kg,
-            'embedding': embedding,
-            'ct_filter': ct_filter,
-            'pg_number': pg_number,
-            'indication': indication,
-            'auroc_mean': np.mean(scores_per_iter),
-            'auroc_std': np.std(scores_per_iter),
-            'auroc_min': np.min(scores_per_iter),
-            'auroc_max': np.max(scores_per_iter),
-            'auroc_range': np.max(scores_per_iter) - np.min(scores_per_iter),
-        })
-
-    return results
+    return pd.DataFrame(results)
 
 
-# ─── Analysis 2: Gene Prediction Stability ──────────────────────────────────
+# ─── Analysis 2 & 3: Gene Stability + Jaccard (combined) ────────────────────
 
-def compute_gene_stability(kg_features, clinical_data, known_targets, pathway_genes_map,
-                           kg, embedding, ct_filter, rf_threshold, pg_number):
-    """For each gene, compute fraction of iterations predicting it as target."""
-    prediction_counts = {}
+def compute_stability_and_jaccard(kg_features, clinical_data, known_targets,
+                                   kg, embedding):
+    """
+    Train models once per iteration, extract both gene stability and Jaccard
+    similarity from the same predictions.
+    """
+    stability_rows = []
+    jaccard_rows = []
 
     for indication in INDICATIONS:
         gene_hits = pd.Series(0, index=kg_features.index, dtype=int)
+        target_sets = []
 
         for iteration in range(1, N_ITERATIONS + 1):
-            prepare_kwargs = {
-                'known_targets': known_targets,
-                'rand_seed': iteration
-            }
-            pg = pathway_genes_map[indication]
-            if pg:
-                prepare_kwargs['pathway_genes'] = pg
-
             training_data = prepare_model(
-                kg_features, clinical_data[indication], **prepare_kwargs
+                kg_features, clinical_data[indication],
+                known_targets=known_targets,
+                rand_seed=iteration
             )
 
             clf = RandomForestClassifier(random_state=iteration)
             clf.fit(training_data['X'], training_data['y_binary'])
 
             probs = clf.predict_proba(kg_features)[:, 1]
-            predicted = probs >= rf_threshold
-            gene_hits += predicted.astype(int)
+            predicted_mask = probs >= RF_THRESHOLD
+            gene_hits += predicted_mask.astype(int)
+            target_sets.append(set(kg_features.index[predicted_mask]))
 
+        # Gene stability
         stability = gene_hits / N_ITERATIONS
-        prediction_counts[indication] = stability
+        nonzero = stability[stability > 0]
+        stability_rows.append({
+            'kg': kg,
+            'embedding': embedding,
+            'indication': indication,
+            'n_genes_predicted': len(nonzero),
+            'n_stable_genes': int((stability >= 0.8).sum()),
+            'n_unstable_genes': int(((stability > 0) & (stability < 0.5)).sum()),
+            'mean_stability': float(nonzero.mean()) if len(nonzero) > 0 else 0,
+        })
 
-    return prediction_counts
+        # Pairwise Jaccard
+        n = len(target_sets)
+        jaccard_matrix = np.ones((n, n))
+        for i, j in combinations(range(n), 2):
+            intersection = len(target_sets[i] & target_sets[j])
+            union = len(target_sets[i] | target_sets[j])
+            jac = intersection / union if union > 0 else 1.0
+            jaccard_matrix[i, j] = jac
+            jaccard_matrix[j, i] = jac
 
+        mask = ~np.eye(n, dtype=bool)
+        jaccard_rows.append({
+            'kg': kg,
+            'embedding': embedding,
+            'indication': indication,
+            'mean_jaccard': float(jaccard_matrix[mask].mean()),
+            'min_jaccard': float(jaccard_matrix[mask].min()),
+        })
 
-# ─── Analysis 3: Jaccard Similarity ──────────────────────────────────────────
-
-def compute_jaccard_similarity(kg_features, clinical_data, known_targets, pathway_genes_map,
-                               kg, embedding, ct_filter, rf_threshold, pg_number, indication):
-    """Compute pairwise Jaccard similarity of predicted target sets across iterations."""
-    target_sets = []
-
-    for iteration in range(1, N_ITERATIONS + 1):
-        prepare_kwargs = {
-            'known_targets': known_targets,
-            'rand_seed': iteration
-        }
-        pg = pathway_genes_map[indication]
-        if pg:
-            prepare_kwargs['pathway_genes'] = pg
-
-        training_data = prepare_model(
-            kg_features, clinical_data[indication], **prepare_kwargs
-        )
-
-        clf = RandomForestClassifier(random_state=iteration)
-        clf.fit(training_data['X'], training_data['y_binary'])
-
-        probs = clf.predict_proba(kg_features)[:, 1]
-        predicted = set(kg_features.index[probs >= rf_threshold])
-        target_sets.append(predicted)
-
-    # Pairwise Jaccard
-    n = len(target_sets)
-    jaccard_matrix = np.ones((n, n))
-    for i, j in combinations(range(n), 2):
-        intersection = len(target_sets[i] & target_sets[j])
-        union = len(target_sets[i] | target_sets[j])
-        jac = intersection / union if union > 0 else 1.0
-        jaccard_matrix[i, j] = jac
-        jaccard_matrix[j, i] = jac
-
-    return jaccard_matrix, target_sets
+    return stability_rows, jaccard_rows
 
 
 # ─── Plotting ────────────────────────────────────────────────────────────────
@@ -233,8 +185,10 @@ def plot_auroc_variance(df, output_dir):
     fig, ax = plt.subplots(figsize=(14, 8))
     df['label'] = df['kg'] + ' / ' + df['embedding']
 
-    for i, indication in enumerate(INDICATIONS):
+    for indication in INDICATIONS:
         subset = df[df['indication'] == indication]
+        if subset.empty:
+            continue
         ax.errorbar(
             subset['label'], subset['auroc_mean'],
             yerr=subset['auroc_std'],
@@ -251,49 +205,36 @@ def plot_auroc_variance(df, output_dir):
     plt.close()
 
 
-def plot_gene_stability(stability_dict, output_dir, kg, embedding, ct_filter, rf_threshold, pg_number):
-    """Plot distribution of gene prediction stability."""
-    fig, axes = plt.subplots(2, 4, figsize=(20, 10))
-    axes = axes.flatten()
+def plot_gene_stability(stability_df, output_dir):
+    """Plot summary of gene prediction stability across all KG/embedding combos."""
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-    for i, indication in enumerate(INDICATIONS):
-        ax = axes[i]
-        stability = stability_dict[indication]
-        # Only show genes predicted at least once
-        nonzero = stability[stability > 0]
-        ax.hist(nonzero, bins=10, edgecolor='black', alpha=0.7)
-        ax.set_title(f'{indication}\n(n={len(nonzero)} genes predicted ≥1 iter)')
-        ax.set_xlabel('Fraction of iterations predicted as target')
-        ax.set_ylabel('Number of genes')
-        ax.axvline(x=0.5, color='red', linestyle='--', alpha=0.5)
+    # Left: mean stability by indication
+    pivot = stability_df.pivot_table(values='mean_stability', index='indication',
+                                      columns=['kg', 'embedding'], aggfunc='mean')
+    sns.heatmap(pivot, annot=True, fmt='.2f', cmap='YlOrRd', vmin=0, vmax=1, ax=axes[0])
+    axes[0].set_title('Mean Gene Prediction Stability')
 
-    # Hide unused subplot
-    if len(INDICATIONS) < len(axes):
-        for j in range(len(INDICATIONS), len(axes)):
-            axes[j].set_visible(False)
+    # Right: stable genes count
+    pivot2 = stability_df.pivot_table(values='n_stable_genes', index='indication',
+                                       columns=['kg', 'embedding'], aggfunc='mean')
+    sns.heatmap(pivot2, annot=True, fmt='.0f', cmap='Blues', ax=axes[1])
+    axes[1].set_title('Genes Stable in ≥80% Iterations')
 
-    fig.suptitle(
-        f'Gene Prediction Stability ({kg}/{embedding}, CT={ct_filter}, '
-        f'RF≥{rf_threshold}, PG={pg_number})',
-        fontsize=14
-    )
     plt.tight_layout()
     plt.savefig(output_dir / 'gene_stability.png', dpi=300)
     plt.close()
 
 
-def plot_jaccard_heatmap(jaccard_matrix, output_dir, indication, kg, embedding):
-    """Plot pairwise Jaccard similarity heatmap."""
-    fig, ax = plt.subplots(figsize=(8, 6))
-    sns.heatmap(
-        jaccard_matrix, annot=True, fmt='.3f',
-        xticklabels=[f'Iter {i+1}' for i in range(jaccard_matrix.shape[0])],
-        yticklabels=[f'Iter {i+1}' for i in range(jaccard_matrix.shape[0])],
-        vmin=0, vmax=1, cmap='YlOrRd', ax=ax
-    )
-    ax.set_title(f'Jaccard Similarity of Predicted Targets\n({indication}, {kg}/{embedding})')
+def plot_jaccard_summary(jaccard_df, output_dir):
+    """Plot Jaccard similarity summary across all combos."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    pivot = jaccard_df.pivot_table(values='mean_jaccard', index='indication',
+                                    columns=['kg', 'embedding'], aggfunc='mean')
+    sns.heatmap(pivot, annot=True, fmt='.3f', cmap='YlOrRd', vmin=0, vmax=1, ax=ax)
+    ax.set_title('Mean Pairwise Jaccard Similarity of Predicted Targets\n(across 10 iterations)')
     plt.tight_layout()
-    plt.savefig(output_dir / f'jaccard_{indication}_{kg}_{embedding}.png', dpi=300)
+    plt.savefig(output_dir / 'jaccard_summary.png', dpi=300)
     plt.close()
 
 
@@ -306,109 +247,48 @@ def main():
 
     scores_date = sys.argv[1]
 
-    # Create output directories
     data_dir = Path('data')
     plots_dir = Path('plots')
     data_dir.mkdir(exist_ok=True)
     plots_dir.mkdir(exist_ok=True)
 
-    # ── Analysis 1: AUROC variance across full grid ──
-    print("=== Analysis 1: AUROC Variance ===")
-    all_auroc_results = []
-
-    for kg in KGS:
-        for embedding in EMBEDDINGS:
-            print(f"Loading {kg}/{embedding}...")
-            kg_features = load_kg_features(kg, embedding)
-
-            for ct_filter in CT_FILTERS:
-                clinical_data, known_targets = load_clinical_data(
-                    scores_date, ct_filter, kg_features
-                )
-
-                for pg_number in PG_NUMBERS:
-                    pathway_genes_map = load_pathway_genes_map(scores_date, pg_number)
-                    print(f"  AUROC: {kg}/{embedding} CT={ct_filter} PG={pg_number}")
-
-                    results = compute_auroc_variance(
-                        kg_features, clinical_data, known_targets, pathway_genes_map,
-                        kg, embedding, ct_filter, pg_number
-                    )
-                    all_auroc_results.extend(results)
-
-    auroc_df = pd.DataFrame(all_auroc_results)
+    # ── Analysis 1: AUROC variance from existing CV results (fast) ──
+    print("=== Analysis 1: AUROC Variance (from existing CV results) ===")
+    auroc_df = load_auroc_variance()
     auroc_df.to_csv(data_dir / 'auroc_variance.csv', index=False)
     plot_auroc_variance(auroc_df, plots_dir)
-    print(f"  Mean AUROC SD across all combos: {auroc_df['auroc_std'].mean():.4f}")
+    print(f"  Mean AUROC SD: {auroc_df['auroc_std'].mean():.4f}")
     print(f"  Max AUROC SD: {auroc_df['auroc_std'].max():.4f}")
 
-    # ── Analysis 2 & 3: Gene stability + Jaccard (representative config) ──
-    # Run on all KG × embedding combos with default params
+    # ── Analysis 2 & 3: Gene stability + Jaccard (combined, single training pass) ──
     print("\n=== Analysis 2 & 3: Gene Stability + Jaccard ===")
     all_stability_rows = []
     all_jaccard_rows = []
-    ct_filter = 'All'
-    rf_threshold = 0.5
-    pg_number = 0
 
     for kg in KGS:
         for embedding in EMBEDDINGS:
-            print(f"  Stability: {kg}/{embedding}...")
+            print(f"  {kg}/{embedding}...")
             kg_features = load_kg_features(kg, embedding)
-            clinical_data, known_targets = load_clinical_data(
-                scores_date, ct_filter, kg_features
+            clinical_data, known_targets = load_clinical_data(scores_date, kg_features)
+
+            stability_rows, jaccard_rows = compute_stability_and_jaccard(
+                kg_features, clinical_data, known_targets, kg, embedding
             )
-            pathway_genes_map = load_pathway_genes_map(scores_date, pg_number)
-
-            # Gene stability
-            stability_dict = compute_gene_stability(
-                kg_features, clinical_data, known_targets, pathway_genes_map,
-                kg, embedding, ct_filter, rf_threshold, pg_number
-            )
-
-            for indication in INDICATIONS:
-                stability = stability_dict[indication]
-                nonzero = stability[stability > 0]
-                all_stability_rows.append({
-                    'kg': kg,
-                    'embedding': embedding,
-                    'indication': indication,
-                    'n_genes_predicted': len(nonzero),
-                    'n_stable_genes': int((stability >= 0.8).sum()),
-                    'n_unstable_genes': int(((stability > 0) & (stability < 0.5)).sum()),
-                    'mean_stability': float(nonzero.mean()) if len(nonzero) > 0 else 0,
-                })
-
-            # Jaccard (for all indications)
-            for indication in INDICATIONS:
-                jaccard_matrix, _ = compute_jaccard_similarity(
-                    kg_features, clinical_data, known_targets, pathway_genes_map,
-                    kg, embedding, ct_filter, rf_threshold, pg_number, indication
-                )
-                # Store mean off-diagonal Jaccard
-                mask = ~np.eye(jaccard_matrix.shape[0], dtype=bool)
-                all_jaccard_rows.append({
-                    'kg': kg,
-                    'embedding': embedding,
-                    'indication': indication,
-                    'mean_jaccard': float(jaccard_matrix[mask].mean()),
-                    'min_jaccard': float(jaccard_matrix[mask].min()),
-                })
-                plot_jaccard_heatmap(jaccard_matrix, plots_dir, indication, kg, embedding)
-
-            plot_gene_stability(
-                stability_dict, plots_dir, kg, embedding, ct_filter, rf_threshold, pg_number
-            )
+            all_stability_rows.extend(stability_rows)
+            all_jaccard_rows.extend(jaccard_rows)
 
     stability_df = pd.DataFrame(all_stability_rows)
     stability_df.to_csv(data_dir / 'gene_stability.csv', index=False)
-    print(f"\n  Mean gene prediction stability: {stability_df['mean_stability'].mean():.3f}")
+    print(f"\n  Mean stability: {stability_df['mean_stability'].mean():.3f}")
     print(f"  Mean stable genes (≥80% iters): {stability_df['n_stable_genes'].mean():.0f}")
 
     jaccard_df = pd.DataFrame(all_jaccard_rows)
     jaccard_df.to_csv(data_dir / 'jaccard_similarity.csv', index=False)
-    print(f"  Mean Jaccard similarity: {jaccard_df['mean_jaccard'].mean():.3f}")
-    print(f"  Min Jaccard similarity: {jaccard_df['min_jaccard'].min():.3f}")
+    print(f"  Mean Jaccard: {jaccard_df['mean_jaccard'].mean():.3f}")
+    print(f"  Min Jaccard: {jaccard_df['min_jaccard'].min():.3f}")
+
+    plot_gene_stability(stability_df, plots_dir)
+    plot_jaccard_summary(jaccard_df, plots_dir)
 
     print("\n✓ Sensitivity analysis complete.")
 
