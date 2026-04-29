@@ -194,15 +194,40 @@ def run_comparison(kg_features, clinical_data, known_targets, kg, embedding):
 # ─── Plotting ────────────────────────────────────────────────────────────────
 
 def plot_jaccard(df, output_dir):
-    """Heatmap of mean Jaccard similarity per KG × embedding × indication."""
-    summary = df.groupby(['kg', 'embedding', 'indication'])['jaccard'].mean().reset_index()
-    pivot = summary.pivot_table(
+    """Heatmap of mean Jaccard similarity and recovery rate per KG × embedding × indication."""
+    df = df.copy()
+    df['recovery'] = df['n_shared'] / df['n_std_targets']
+
+    fig, axes = plt.subplots(2, 1, figsize=(18, 14))
+
+    # Top: Jaccard similarity
+    summary_jac = df.groupby(['kg', 'embedding', 'indication'])['jaccard'].mean().reset_index()
+    pivot_jac = summary_jac.pivot_table(
         values='jaccard', index='indication',
         columns=['kg', 'embedding'], aggfunc='mean'
     )
-    fig, ax = plt.subplots(figsize=(14, 6))
-    sns.heatmap(pivot, annot=True, fmt='.2f', cmap='YlOrRd', vmin=0, vmax=1, ax=ax)
-    ax.set_title('Mean Jaccard: Standard vs Confident Negative Targets (across 10 iterations)')
+    pivot_jac.columns = [f'{kg}-{emb}' for kg, emb in pivot_jac.columns]
+    sns.heatmap(pivot_jac, annot=True, fmt='.2f', cmap='YlOrRd', vmin=0, vmax=1,
+                ax=axes[0], annot_kws={'size': 11})
+    axes[0].set_title('Mean Jaccard Similarity: Standard vs Confident Negative Targets', fontsize=13)
+    axes[0].set_xlabel('KG-Embedding', fontsize=11)
+    axes[0].tick_params(axis='x', labelsize=9, rotation=45)
+    axes[0].tick_params(axis='y', labelsize=10)
+
+    # Bottom: Recovery rate (fraction of standard targets also in confident)
+    summary_rec = df.groupby(['kg', 'embedding', 'indication'])['recovery'].mean().reset_index()
+    pivot_rec = summary_rec.pivot_table(
+        values='recovery', index='indication',
+        columns=['kg', 'embedding'], aggfunc='mean'
+    )
+    pivot_rec.columns = [f'{kg}-{emb}' for kg, emb in pivot_rec.columns]
+    sns.heatmap(pivot_rec, annot=True, fmt='.3f', cmap='YlGn', vmin=0.95, vmax=1,
+                ax=axes[1], annot_kws={'size': 11})
+    axes[1].set_title('Recovery Rate: Fraction of Standard Targets Also Predicted by Confident Model', fontsize=13)
+    axes[1].set_xlabel('KG-Embedding', fontsize=11)
+    axes[1].tick_params(axis='x', labelsize=9, rotation=45)
+    axes[1].tick_params(axis='y', labelsize=10)
+
     plt.tight_layout()
     plt.savefig(output_dir / 'jaccard_comparison.png', dpi=300)
     plt.close()

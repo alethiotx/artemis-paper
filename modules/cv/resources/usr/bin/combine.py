@@ -59,13 +59,13 @@ SCORING_ORDER = ["R^2 (regression)", "Accuracy", "AUROC"]
 PLOT_CONFIGS = [
     {
         'name': 'all',
-        'filter': lambda df: df['targets'] == 'Real',
+        'filter': lambda df: (df['targets'] == 'Real') & (df['embedding'] == 'RotatE'),
         'fill': 'kg',
         'color': 'kg',
-        'facet': 'embedding~scoring+bins',
+        'facet': '~scoring+bins',
         'ylim': (0, 1),
         'width': 16,
-        'height': 12
+        'height': 5
     },
     {
         'name': 'all_indications',

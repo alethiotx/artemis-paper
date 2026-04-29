@@ -214,19 +214,29 @@ def plot_auroc_variance(df, output_dir):
 
 def plot_gene_stability(stability_df, output_dir):
     """Plot summary of gene prediction stability across all KG/embedding combos."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(2, 1, figsize=(16, 18))
 
-    # Left: mean stability by indication
+    # Top: mean stability by indication
     pivot = stability_df.pivot_table(values='mean_stability', index='indication',
                                       columns=['kg', 'embedding'], aggfunc='mean')
-    sns.heatmap(pivot, annot=True, fmt='.2f', cmap='YlOrRd', vmin=0, vmax=1, ax=axes[0])
-    axes[0].set_title('Mean Gene Prediction Stability')
+    pivot.columns = [f'{kg}-{emb}' for kg, emb in pivot.columns]
+    sns.heatmap(pivot, annot=True, fmt='.2f', cmap='YlOrRd', vmin=0, vmax=1,
+                ax=axes[0], annot_kws={'size': 12})
+    axes[0].set_title('Mean Gene Prediction Stability', fontsize=14)
+    axes[0].set_xlabel('KG-Embedding', fontsize=12)
+    axes[0].tick_params(axis='x', labelsize=10, rotation=45)
+    axes[0].tick_params(axis='y', labelsize=11)
 
-    # Right: stable genes count
+    # Bottom: stable genes count
     pivot2 = stability_df.pivot_table(values='n_stable_genes', index='indication',
                                        columns=['kg', 'embedding'], aggfunc='mean')
-    sns.heatmap(pivot2, annot=True, fmt='.0f', cmap='Blues', ax=axes[1])
-    axes[1].set_title('Genes Stable in ≥80% Iterations')
+    pivot2.columns = [f'{kg}-{emb}' for kg, emb in pivot2.columns]
+    sns.heatmap(pivot2, annot=True, fmt='.0f', cmap='Blues',
+                ax=axes[1], annot_kws={'size': 12})
+    axes[1].set_title('Genes Stable in ≥80% Iterations', fontsize=14)
+    axes[1].set_xlabel('KG-Embedding', fontsize=12)
+    axes[1].tick_params(axis='x', labelsize=10, rotation=45)
+    axes[1].tick_params(axis='y', labelsize=11)
 
     plt.tight_layout()
     plt.savefig(output_dir / 'gene_stability.png', dpi=300)
@@ -235,11 +245,16 @@ def plot_gene_stability(stability_df, output_dir):
 
 def plot_jaccard_summary(jaccard_df, output_dir):
     """Plot Jaccard similarity summary across all combos."""
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(20, 8))
     pivot = jaccard_df.pivot_table(values='mean_jaccard', index='indication',
                                     columns=['kg', 'embedding'], aggfunc='mean')
-    sns.heatmap(pivot, annot=True, fmt='.3f', cmap='YlOrRd', vmin=0, vmax=1, ax=ax)
+    # Flatten multi-level columns for readable x-axis labels
+    pivot.columns = [f'{kg}-{emb}' for kg, emb in pivot.columns]
+    sns.heatmap(pivot, annot=True, fmt='.2f', cmap='YlOrRd', vmin=0, vmax=1,
+                ax=ax, annot_kws={'size': 12})
     ax.set_title('Mean Pairwise Jaccard Similarity of Predicted Targets\n(across 10 iterations)')
+    ax.set_xlabel('KG-Embedding')
+    ax.tick_params(axis='x', labelsize=10)
     plt.tight_layout()
     plt.savefig(output_dir / 'jaccard_summary.png', dpi=300)
     plt.close()
