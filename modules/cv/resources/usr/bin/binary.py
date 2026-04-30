@@ -45,7 +45,9 @@ EVALUATIONS = [
     ('roc_auc', False, 'Real'),    # Real targets, AUROC
     ('roc_auc', True, 'Random'),   # Random labels, AUROC baseline
     ('accuracy', False, 'Real'),   # Real targets, Accuracy
-    ('accuracy', True, 'Random')   # Random labels, Accuracy baseline
+    ('accuracy', True, 'Random'),  # Random labels, Accuracy baseline
+    ('average_precision', False, 'Real'),   # Real targets, AUPRC
+    ('average_precision', True, 'Random')   # Random labels, AUPRC baseline
 ]
 
 

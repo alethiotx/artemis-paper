@@ -41,6 +41,7 @@ BIN_LABELS = {
 
 SCORING_LABELS = {
     'accuracy': 'Accuracy',
+    'average_precision': 'AUPRC',
     'r2': 'R^2 (regression)',
     'roc_auc': 'AUROC'
 }
@@ -53,7 +54,7 @@ CLASSIFIER_LABELS = {
 }
 
 # Scoring metric order for plots
-SCORING_ORDER = ["R^2 (regression)", "Accuracy", "AUROC"]
+SCORING_ORDER = ["R^2 (regression)", "Accuracy", "AUROC", "AUPRC"]
 
 # Plot configurations
 PLOT_CONFIGS = [
