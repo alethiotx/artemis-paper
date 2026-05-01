@@ -60,7 +60,7 @@ SCORING_ORDER = ["R^2 (regression)", "Accuracy", "AUROC", "AUPRC"]
 PLOT_CONFIGS = [
     {
         'name': 'all',
-        'filter': lambda df: (df['targets'] == 'Real') & (df['embedding'] == 'RotatE'),
+        'filter': lambda df: (df['targets'] == 'Real') & (df['embedding'] == 'RotatE') & (df['feature_type'] == 'LP Scores'),
         'fill': 'kg',
         'color': 'kg',
         'facet': '~scoring+bins',
@@ -70,7 +70,7 @@ PLOT_CONFIGS = [
     },
     {
         'name': 'all_indications',
-        'filter': lambda df: df['targets'] == 'Real',
+        'filter': lambda df: (df['targets'] == 'Real') & (df['feature_type'] == 'LP Scores'),
         'fill': 'indication',
         'color': 'indication',
         'facet': 'kg+embedding~scoring+bins',
@@ -80,13 +80,23 @@ PLOT_CONFIGS = [
     },
     {
         'name': 'all_baseline',
-        'filter': lambda df: df['targets'] == 'Random',
+        'filter': lambda df: (df['targets'] == 'Random') & (df['feature_type'] == 'LP Scores'),
         'fill': 'indication',
         'color': 'indication',
         'facet': 'kg+embedding~scoring+bins',
         'ylim': (-1, 1),
         'width': 16,
         'height': 24
+    },
+    {
+        'name': 'all_embeddings_comparison',
+        'filter': lambda df: (df['targets'] == 'Real') & (df['embedding'] == 'RotatE'),
+        'fill': 'feature_type',
+        'color': 'feature_type',
+        'facet': '~scoring+bins',
+        'ylim': (0, 1),
+        'width': 16,
+        'height': 5
     }
 ]
 
@@ -154,6 +164,10 @@ def standardize_labels(df: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         DataFrame with standardized labels
     """
+    # Ensure feature_type column exists (backward compatibility)
+    if 'feature_type' not in df.columns:
+        df['feature_type'] = 'LP Scores'
+
     # Standardize bins
     df['bins'] = df['bins'].astype('str')
     df = df[~(df['bins'] == '1')]  # Remove single bin results
