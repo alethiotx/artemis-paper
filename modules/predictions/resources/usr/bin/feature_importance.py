@@ -272,9 +272,12 @@ def main():
         ['kg', 'embedding', 'indication', 'seed']
     )['importance_mean'].transform(lambda x: x / x.mean())
 
+    # Create label with KG name in brackets
+    results_df['type_label'] = results_df['entity_type'] + ' (' + results_df['kg'] + ')'
+
     # Determine type order by normalized mean importance
     type_order = (
-        results_df.groupby('entity_type')['mean_importance_normalized']
+        results_df.groupby('type_label')['mean_importance_normalized']
         .median()
         .sort_values(ascending=False)
         .index.tolist()
@@ -283,12 +286,12 @@ def main():
     # ─── Plot 1: Feature fraction vs Sum importance (side-by-side bars) ──────
 
     # Aggregate medians for comparison
-    comparison = results_df.groupby('entity_type').agg(
+    comparison = results_df.groupby('type_label').agg(
         feature_fraction=('feature_fraction_pct', 'median'),
         importance_sum=('importance_sum_pct', 'median')
     ).loc[type_order]
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
     x = np.arange(len(type_order))
     width = 0.35
     bars1 = ax.bar(x - width/2, comparison['feature_fraction'], width,
@@ -296,7 +299,7 @@ def main():
     bars2 = ax.bar(x + width/2, comparison['importance_sum'], width,
                    label='Gini importance (%)', color='#ff7f7f', edgecolor='black', linewidth=0.5)
     ax.set_xticks(x)
-    ax.set_xticklabels(type_order, rotation=45, ha='right')
+    ax.set_xticklabels(type_order, rotation=45, ha='right', fontsize=7)
     ax.set_xlabel('Relationship Type')
     ax.set_ylabel('Percentage (%)')
     ax.set_title('Feature Fraction vs Gini Importance by Relationship Type')
@@ -308,10 +311,10 @@ def main():
 
     # ─── Plot 2: Normalized mean importance (fold-enrichment over uniform) ───
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 6))
     sns.boxplot(
         data=results_df,
-        x='entity_type',
+        x='type_label',
         y='mean_importance_normalized',
         order=type_order,
         ax=ax
@@ -321,34 +324,45 @@ def main():
     ax.set_ylabel('Normalized Mean Importance\n(fold over uniform)')
     ax.set_title('Per-Feature Importance by Relationship Type\n(normalized for feature count)')
     ax.legend()
-    plt.xticks(rotation=45, ha='right')
+    plt.xticks(rotation=45, ha='right', fontsize=7)
     plt.tight_layout()
     fig.savefig(plots_dir / 'feature_importance_by_type.png', dpi=150, bbox_inches='tight')
     plt.close(fig)
     print("✓ Saved plots/feature_importance_by_type.png")
 
-    # ─── Plot 3: Normalized mean importance, faceted by KG ───────────────────
+    # ─── Plot 3: Normalized mean importance, faceted by KG (own types only) ──
 
-    g = sns.catplot(
-        data=results_df,
-        x='entity_type',
-        y='mean_importance_normalized',
-        col='kg',
-        kind='box',
-        order=type_order,
-        col_wrap=2,
-        height=4,
-        aspect=1.5,
-        sharey=True
-    )
-    for ax in g.axes.flat:
+    kg_list = sorted(results_df['kg'].unique())
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()
+
+    for idx, kg in enumerate(kg_list):
+        ax = axes[idx]
+        kg_data = results_df[results_df['kg'] == kg]
+        # Order by median normalized importance within this KG
+        kg_type_order = (
+            kg_data.groupby('entity_type')['mean_importance_normalized']
+            .median()
+            .sort_values(ascending=False)
+            .index.tolist()
+        )
+        sns.boxplot(
+            data=kg_data,
+            x='entity_type',
+            y='mean_importance_normalized',
+            order=kg_type_order,
+            ax=ax
+        )
         ax.axhline(y=1.0, color='red', linestyle='--', alpha=0.7)
-    g.set_xticklabels(rotation=45, ha='right')
-    g.set_axis_labels('Relationship Type', 'Normalized Mean Importance')
-    g.figure.suptitle('Per-Feature Importance by Relationship Type per KG', y=1.02)
-    g.tight_layout()
-    g.savefig(plots_dir / 'feature_importance_by_type_per_kg.png', dpi=150, bbox_inches='tight')
-    plt.close(g.figure)
+        ax.set_xlabel('')
+        ax.set_ylabel('Normalized Mean Importance')
+        ax.set_title(kg)
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+
+    fig.suptitle('Per-Feature Importance by Relationship Type per KG\n(normalized for feature count)', fontsize=12)
+    plt.tight_layout()
+    fig.savefig(plots_dir / 'feature_importance_by_type_per_kg.png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
     print("✓ Saved plots/feature_importance_by_type_per_kg.png")
 
     # ─── Plot 4: Normalized mean importance, faceted by indication ───────────
