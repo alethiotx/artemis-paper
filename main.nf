@@ -29,7 +29,7 @@ include { chembl; mesh } from './modules/data'
 include { clinical_scores } from './modules/clinical_scores'
 include { pathway_genes } from './modules/pathway_genes'
 include { cv; cv_combine; range; range_combine } from './modules/cv'
-include { compute; pr_combine; targets; training_sets; baselines; sabcs; sabcs_consensus; sensitivity_analysis; confident_negatives } from './modules/predictions'
+include { compute; pr_combine; targets; training_sets; baselines; sabcs; sabcs_consensus; sensitivity_analysis; confident_negatives; feature_importance } from './modules/predictions'
 include { upset } from './modules/upset'
 include { kgs_overview } from './modules/kgs'
 
@@ -209,6 +209,12 @@ workflow {
   if (params.mode == 'negative_sampling') {
     sensitivity_analysis()
     confident_negatives()
+  }
+
+  // ─── Feature Importance Analysis ──────────────────────────────────────────
+
+  if (params.mode == 'feature_importance') {
+    feature_importance()
   }
 
 }

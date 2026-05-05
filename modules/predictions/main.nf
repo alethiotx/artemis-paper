@@ -254,3 +254,27 @@ process sabcs_consensus {
   consensus_sabcs.py ${params.scores_date} ${pickle}
   """
 }
+
+/**
+ * Feature importance analysis by relationship type
+ *
+ * Trains Random Forest classifiers for each KG × embedding × indication
+ * and extracts Gini feature importances aggregated by entity/relationship type
+ * (e.g., Gene, Biological Process, Pathway, Disease). Generates boxplots
+ * showing which relationship types are most informative for predictions.
+ */
+process feature_importance {
+  label 'feature_importance'
+  publishDir params.outdir + '/figs_review/feature_importance', mode: 'copy'
+  
+  output:
+    path 'data/*'
+    path 'plots/*'
+  
+  script:
+  """
+  mkdir -p data plots
+  
+  feature_importance.py ${params.scores_date}
+  """
+}
