@@ -44,9 +44,6 @@ PG_NUMBERS = ['0', '100', '300']
 # Knowledge graphs in grid
 KGS = ['biokg', 'hetionet', 'openbiolink', 'primekg']
 
-# Embeddings in grid
-EMBEDDINGS = ['ComplEx', 'DistMult', 'RotatE', 'TransE']
-
 # Clinical trial filters in grid
 CTS = ['All', 'Approved', 'Unique']
 
@@ -347,10 +344,10 @@ def main():
     plots_dir = Path('plots')
     plots_dir.mkdir(exist_ok=True)
     
-    # Generate heatmaps for each RF threshold and embedding
+    # Generate heatmaps for each RF threshold
     print("Generating heatmaps...")
     for rf_threshold in RF_THRESHOLDS:
-        for embedding in EMBEDDINGS:
+        for embedding in ['RotatE']:
             fig = create_heatmap_grid(results_averaged, rf_threshold, embedding)
             
             output_path = plots_dir / f'{rf_threshold}_{embedding}.png'
@@ -361,7 +358,7 @@ def main():
     
     # Generate special horizontal plot for RF threshold 0.7 with Unique only
     print("Generating horizontal Unique plots for RF 0.7...")
-    for embedding in EMBEDDINGS:
+    for embedding in ['RotatE']:
         fig_horizontal = create_horizontal_unique_heatmap(results_averaged, '0.7', embedding)
         output_path_horizontal = plots_dir / f'0.7_unique_horizontal_{embedding}.png'
         fig_horizontal.savefig(output_path_horizontal, dpi=300, bbox_inches='tight')

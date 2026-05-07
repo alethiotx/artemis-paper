@@ -49,7 +49,7 @@ INDICATION_ORDER = ['breast', 'lung', 'bowel', 'prostate', 'melanoma', 'diabetes
 # Main text heatmap configuration
 MAIN_TEXT_CONFIG = {
     'kg': 'hetionet',
-    'embedding': 'ComplEx',
+    'embedding': 'RotatE',
     'ct': 'All',
     'rf_threshold': '0.5',
     'pg_number': '0'
@@ -58,7 +58,7 @@ MAIN_TEXT_CONFIG = {
 # Second subfigure configuration
 MAIN_TEXT_CONFIG_2 = {
     'kg': 'hetionet',
-    'embedding': 'ComplEx',
+    'embedding': 'RotatE',
     'ct': 'Unique',
     'rf_threshold': '0.7',
     'pg_number': '0'
@@ -68,7 +68,6 @@ MAIN_TEXT_CONFIG_2 = {
 HEATMAP_RF_THRESHOLDS = ['0.5', '0.6', '0.7', '0.8', '0.9']
 HEATMAP_PG_NUMBERS = ['0', '100', '300']
 HEATMAP_KGS = ['biokg', 'hetionet', 'openbiolink', 'primekg']
-HEATMAP_EMBEDDINGS = ['ComplEx', 'DistMult', 'RotatE', 'TransE']
 HEATMAP_CTS = ['All', 'Approved', 'Unique']
 
 # Heatmap color settings
@@ -413,7 +412,7 @@ def create_full_heatmaps(results: Dict) -> None:
     
     for rf_threshold in HEATMAP_RF_THRESHOLDS:
         for pg_number in HEATMAP_PG_NUMBERS:
-            for embedding in HEATMAP_EMBEDDINGS:
+            for embedding in ['RotatE']:
                 fig, axes = plt.subplots(
                     ncols=len(HEATMAP_CTS),
                     nrows=len(HEATMAP_KGS),
