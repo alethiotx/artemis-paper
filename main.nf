@@ -142,10 +142,10 @@ workflow {
     // Cross-validation iterations for stability
     iterations = Channel.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
-    // Generate predictions across all parameter combinations
+    // Generate predictions for all KGs with RotatE (original paper embedding)
     compute(
       kgs
-        .combine(embeddings)
+        .combine(Channel.of('RotatE'))
         .combine(ct_unique)
         .combine(probs)
         .combine(p_genes)
