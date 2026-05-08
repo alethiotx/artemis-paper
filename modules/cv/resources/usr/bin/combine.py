@@ -36,14 +36,14 @@ BIN_LABELS = {
     '2': '3 classes',
     '3': '4 classes',
     '5': '6 classes',
-    'nan': 'No binning'
+    'nan': ''
 }
 
 SCORING_LABELS = {
-    'accuracy': 'Accuracy',
-    'average_precision': 'AUPRC',
-    'r2': 'R^2 (regression)',
-    'roc_auc': 'AUROC'
+    'accuracy': 'Accuracy (Classification)',
+    'average_precision': 'AUPRC (Classification)',
+    'r2': 'R² (Regression)',
+    'roc_auc': 'AUROC (Classification)'
 }
 
 CLASSIFIER_LABELS = {
@@ -54,7 +54,7 @@ CLASSIFIER_LABELS = {
 }
 
 # Scoring metric order for plots
-SCORING_ORDER = ["R^2 (regression)", "Accuracy", "AUROC", "AUPRC"]
+SCORING_ORDER = ["R² (Regression)", "Accuracy (Classification)", "AUROC (Classification)", "AUPRC (Classification)"]
 
 # Plot configurations
 PLOT_CONFIGS = [
@@ -65,7 +65,7 @@ PLOT_CONFIGS = [
         'color': 'kg',
         'facet': '~scoring+bins',
         'ylim': (0, 1),
-        'width': 16,
+        'width': 20,
         'height': 5
     },
     {
@@ -95,7 +95,7 @@ PLOT_CONFIGS = [
         'color': 'feature_type',
         'facet': '~scoring+bins',
         'ylim': (0, 1),
-        'width': 16,
+        'width': 20,
         'height': 5
     }
 ]
@@ -219,7 +219,10 @@ def create_plot(df: pd.DataFrame, config: dict) -> object:
         + geom_boxplot()
         + facet_grid(config['facet'], scales="free_x")
         + theme_seaborn()
-        + theme(text=element_text(size=14))
+        + theme(
+            text=element_text(size=14),
+            strip_text=element_text(size=11),
+        )
         + xlab('')
         + ylab('Score')
         + ylim(*config['ylim'])
