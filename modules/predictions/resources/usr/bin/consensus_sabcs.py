@@ -57,6 +57,21 @@ HEATMAP_CMAP = 'vlag'
 CLUSTER_HEATMAP_FIGSIZE = (7, 20)
 DENDROGRAM_RATIO = (0.3, 0.05)
 
+# Manually defined cluster boundaries (boundary genes in dendrogram order)
+# These correspond to the three clusters described in the manuscript
+CLUSTER_BOUNDARIES = {
+    'high': {'last_gene': 'TF', 'color': '#d73027'},
+    'mid': {'last_gene': 'PTK6', 'color': '#ffffff'},
+    'low': {'last_gene': None, 'color': '#4575b4'},  # None = rest of genes
+}
+
+# Genes explicitly discussed in the manuscript text
+MANUSCRIPT_GENES = {
+    'BRCA1', 'PTEN', 'MED1', 'BRAF', 'MDM2', 'GATA3', 'YAP1', 'RAD51',
+    'FAT1', 'CDK9', 'RUNX2', 'RUNX3',
+    'CDK12', 'RAD52', 'TEAD4', 'CD276',
+}
+
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
 def load_sabcs_targets(scores_date: str) -> List[str]:
@@ -169,22 +184,73 @@ def create_clustered_heatmap(data: pd.DataFrame, pg_number: str, output_dir: Pat
     if suffix == '_no_biokg':
         figsize = (CLUSTER_HEATMAP_FIGSIZE[0], CLUSTER_HEATMAP_FIGSIZE[1] * 1.5)
     
-    sns.clustermap(
-        complete_data,
-        vmin=HEATMAP_VMIN,
-        vmax=HEATMAP_VMAX,
-        center=HEATMAP_CENTER,
-        cmap=HEATMAP_CMAP,
-        xticklabels=1,
-        yticklabels=1,
-        figsize=figsize,
-        dendrogram_ratio=DENDROGRAM_RATIO,
-        method='average',  # Use average linkage for more stable clustering
-        metric='euclidean'  # Explicit distance metric
-    )
+    # Only add cluster color bar for the main manuscript figure (pg=0, no suffix)
+    use_cluster_colors = (pg_number == '0' and suffix == '')
+    
+    if use_cluster_colors:
+        # First pass: cluster to determine dendrogram order
+        g = sns.clustermap(
+            complete_data,
+            vmin=HEATMAP_VMIN,
+            vmax=HEATMAP_VMAX,
+            center=HEATMAP_CENTER,
+            cmap=HEATMAP_CMAP,
+            xticklabels=1,
+            yticklabels=1,
+            figsize=figsize,
+            dendrogram_ratio=DENDROGRAM_RATIO,
+            method='average',
+            metric='euclidean'
+        )
+        
+        # Assign cluster colors based on dendrogram order
+        reordered_genes = list(complete_data.index[g.dendrogram_row.reordered_ind])
+        boundaries = list(CLUSTER_BOUNDARIES.values())
+        cluster_idx = 0
+        gene_colors = {}
+        for gene in reordered_genes:
+            gene_colors[gene] = boundaries[cluster_idx]['color']
+            if boundaries[cluster_idx]['last_gene'] and gene == boundaries[cluster_idx]['last_gene']:
+                cluster_idx += 1
+        
+        # Redraw with row_colors
+        plt.close()
+        row_colors = complete_data.index.map(gene_colors)
+        g = sns.clustermap(
+            complete_data,
+            vmin=HEATMAP_VMIN,
+            vmax=HEATMAP_VMAX,
+            center=HEATMAP_CENTER,
+            cmap=HEATMAP_CMAP,
+            xticklabels=1,
+            yticklabels=1,
+            figsize=figsize,
+            dendrogram_ratio=DENDROGRAM_RATIO,
+            method='average',
+            metric='euclidean',
+            row_colors=row_colors,
+        )
+        # Bold the gene labels mentioned in the manuscript
+        for label in g.ax_heatmap.get_yticklabels():
+            if label.get_text() in MANUSCRIPT_GENES:
+                label.set_fontweight('bold')
+    else:
+        g = sns.clustermap(
+            complete_data,
+            vmin=HEATMAP_VMIN,
+            vmax=HEATMAP_VMAX,
+            center=HEATMAP_CENTER,
+            cmap=HEATMAP_CMAP,
+            xticklabels=1,
+            yticklabels=1,
+            figsize=figsize,
+            dendrogram_ratio=DENDROGRAM_RATIO,
+            method='average',
+            metric='euclidean'
+        )
     
     filename = f'clustermap_{pg_number}{suffix}.png' if suffix else f'clustermap_{pg_number}.png'
-    plt.savefig(output_dir / filename)
+    plt.savefig(output_dir / filename, bbox_inches='tight')
     plt.close()
 
 
