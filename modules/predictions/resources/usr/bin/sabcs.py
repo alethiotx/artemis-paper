@@ -59,30 +59,31 @@ HEATMAP_FIGSIZE = (9, 8)
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
-def parse_filename(filepath: str) -> Tuple[str, str, str, str, str]:
+def parse_filename(filepath: str) -> Tuple[str, str, str, str, str, str]:
     """
     Extract parameters from SABCS result filename.
     
     Parameters
     ----------
     filepath : str
-        Path to SABCS CSV (format: <kg>_<ct>_<threshold>_<pg>_<iter>.csv)
+        Path to SABCS CSV (format: <kg>_<embedding>_<ct>_<threshold>_<pg>_<iter>.csv)
     
     Returns
     -------
-    Tuple[str, str, str, str, str]
-        Knowledge graph, clinical trial filter, RF threshold, pathway genes, iteration
+    Tuple[str, str, str, str, str, str]
+        Knowledge graph, embedding, clinical trial filter, RF threshold, pathway genes, iteration
     """
     filename = Path(filepath).name
     parts = filename.split('_')
     
     kg = parts[0]
-    ct = parts[1]
-    rf_threshold = parts[2][:3]  # Extract first 3 chars (e.g., '0.5')
-    pg_number = parts[3]
-    iteration = parts[4].split('.')[0]
+    embedding = parts[1]
+    ct = parts[2]
+    rf_threshold = parts[3][:3]  # Extract first 3 chars (e.g., '0.5')
+    pg_number = parts[4]
+    iteration = parts[5].split('.')[0]
     
-    return kg, ct, rf_threshold, pg_number, iteration
+    return kg, embedding, ct, rf_threshold, pg_number, iteration
 
 
 def load_results(files: List[str]) -> Dict:
@@ -97,22 +98,22 @@ def load_results(files: List[str]) -> Dict:
     Returns
     -------
     Dict
-        Nested dictionary: [kg][ct][rf_threshold][pg_number][iteration] -> DataFrame
+        Nested dictionary: [kg][embedding][ct][rf_threshold][pg_number][iteration] -> DataFrame
     """
-    results = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict))))
+    results = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))))
     
     print(f"Loading {len(files)} SABCS result files...")
     
     for filepath in files:
         try:
             # Parse filename
-            kg, ct, rf_threshold, pg_number, iteration = parse_filename(filepath)
+            kg, embedding, ct, rf_threshold, pg_number, iteration = parse_filename(filepath)
             
             # Load data (convert to percentage)
             data = pd.read_csv(filepath, encoding='utf8', index_col=0) * 100
             
             # Store in nested structure
-            results[kg][ct][rf_threshold][pg_number][iteration] = data
+            results[kg][embedding][ct][rf_threshold][pg_number][iteration] = data
             
             print(f"  ✓ {Path(filepath).name}")
         except Exception as e:
@@ -145,27 +146,28 @@ def average_iterations(results: Dict) -> Dict:
     print("Averaging over iterations...")
     
     for kg in sorted(results.keys()):
-        for ct in sorted(results[kg].keys()):
-            for rf_threshold in sorted(results[kg][ct].keys()):
-                for pg_number in sorted(results[kg][ct][rf_threshold].keys()):
-                    # Average over iterations (sort iteration keys for determinism)
-                    iteration_dfs = [
-                        results[kg][ct][rf_threshold][pg_number][iter_key]
-                        for iter_key in sorted(results[kg][ct][rf_threshold][pg_number].keys())
-                    ]
-                    averaged = reduce(
-                        lambda a, b: a.add(b, fill_value=0),
-                        iteration_dfs
-                    ) / N_ITERATIONS
-                    
-                    results[kg][ct][rf_threshold][pg_number] = averaged
+        for embedding in sorted(results[kg].keys()):
+            for ct in sorted(results[kg][embedding].keys()):
+                for rf_threshold in sorted(results[kg][embedding][ct].keys()):
+                    for pg_number in sorted(results[kg][embedding][ct][rf_threshold].keys()):
+                        # Average over iterations (sort iteration keys for determinism)
+                        iteration_dfs = [
+                            results[kg][embedding][ct][rf_threshold][pg_number][iter_key]
+                            for iter_key in sorted(results[kg][embedding][ct][rf_threshold][pg_number].keys())
+                        ]
+                        averaged = reduce(
+                            lambda a, b: a.add(b, fill_value=0),
+                            iteration_dfs
+                        ) / N_ITERATIONS
+                        
+                        results[kg][embedding][ct][rf_threshold][pg_number] = averaged
     
     return results
 
 
-def create_heatmap_grid(results: Dict, rf_threshold: str) -> None:
+def create_heatmap_grid(results: Dict, rf_threshold: str, embedding: str) -> None:
     """
-    Create heatmap grid for a specific RF threshold.
+    Create heatmap grid for a specific RF threshold and embedding.
     
     Parameters
     ----------
@@ -173,6 +175,8 @@ def create_heatmap_grid(results: Dict, rf_threshold: str) -> None:
         Averaged results dictionary
     rf_threshold : str
         RF threshold to plot
+    embedding : str
+        Embedding method to plot
     """
     fig, axes = plt.subplots(
         ncols=len(CTS),
@@ -188,7 +192,7 @@ def create_heatmap_grid(results: Dict, rf_threshold: str) -> None:
             
             # Combine pathway gene results
             pg_data = pd.concat(
-                [results[kg][ct][rf_threshold][pg] for pg in PG_NUMBERS],
+                [results[kg][embedding][ct][rf_threshold][pg] for pg in PG_NUMBERS],
                 axis=1,
                 keys=PG_NUMBERS
             )
@@ -235,7 +239,7 @@ def create_heatmap_grid(results: Dict, rf_threshold: str) -> None:
     return fig
 
 
-def create_horizontal_unique_heatmap(results: Dict, rf_threshold: str) -> None:
+def create_horizontal_unique_heatmap(results: Dict, rf_threshold: str, embedding: str) -> None:
     """
     Create horizontal heatmap showing only Unique CT filter across all KGs.
     
@@ -245,6 +249,8 @@ def create_horizontal_unique_heatmap(results: Dict, rf_threshold: str) -> None:
         Averaged results dictionary
     rf_threshold : str
         RF threshold to plot
+    embedding : str
+        Embedding method to plot
     """
     fig, axes = plt.subplots(
         ncols=len(KGS),
@@ -261,7 +267,7 @@ def create_horizontal_unique_heatmap(results: Dict, rf_threshold: str) -> None:
         
         # Combine pathway gene results
         pg_data = pd.concat(
-            [results[kg][ct][rf_threshold][pg] for pg in PG_NUMBERS],
+            [results[kg][embedding][ct][rf_threshold][pg] for pg in PG_NUMBERS],
             axis=1,
             keys=PG_NUMBERS
         )
@@ -341,21 +347,23 @@ def main():
     # Generate heatmaps for each RF threshold
     print("Generating heatmaps...")
     for rf_threshold in RF_THRESHOLDS:
-        fig = create_heatmap_grid(results_averaged, rf_threshold)
-        
-        output_path = plots_dir / f'{rf_threshold}.png'
-        fig.savefig(output_path)
-        plt.close(fig)
-        
-        print(f"  ✓ {rf_threshold}.png")
+        for embedding in ['RotatE']:
+            fig = create_heatmap_grid(results_averaged, rf_threshold, embedding)
+            
+            output_path = plots_dir / f'{rf_threshold}_{embedding}.png'
+            fig.savefig(output_path)
+            plt.close(fig)
+            
+            print(f"  ✓ {rf_threshold}_{embedding}.png")
     
     # Generate special horizontal plot for RF threshold 0.7 with Unique only
-    print("Generating horizontal Unique plot for RF 0.7...")
-    fig_horizontal = create_horizontal_unique_heatmap(results_averaged, '0.7')
-    output_path_horizontal = plots_dir / '0.7_unique_horizontal.png'
-    fig_horizontal.savefig(output_path_horizontal, dpi=300, bbox_inches='tight')
-    plt.close(fig_horizontal)
-    print(f"  ✓ 0.7_unique_horizontal.png")
+    print("Generating horizontal Unique plots for RF 0.7...")
+    for embedding in ['RotatE']:
+        fig_horizontal = create_horizontal_unique_heatmap(results_averaged, '0.7', embedding)
+        output_path_horizontal = plots_dir / f'0.7_unique_horizontal_{embedding}.png'
+        fig_horizontal.savefig(output_path_horizontal, dpi=300, bbox_inches='tight')
+        plt.close(fig_horizontal)
+        print(f"  ✓ 0.7_unique_horizontal_{embedding}.png")
     
     print("✓ All visualizations generated")
 

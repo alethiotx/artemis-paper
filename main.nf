@@ -29,7 +29,7 @@ include { chembl; mesh } from './modules/data'
 include { clinical_scores } from './modules/clinical_scores'
 include { pathway_genes } from './modules/pathway_genes'
 include { cv; cv_combine; range; range_combine } from './modules/cv'
-include { compute; pr_combine; targets; training_sets; baselines; sabcs; sabcs_consensus } from './modules/predictions'
+include { compute; pr_combine; targets; training_sets; baselines; sabcs; sabcs_consensus; sensitivity_analysis; confident_negatives; feature_importance } from './modules/predictions'
 include { upset } from './modules/upset'
 include { kgs_overview } from './modules/kgs'
 
@@ -41,6 +41,13 @@ workflow {
     'biokg',
     'openbiolink',
     'primekg'
+  )
+
+  embeddings = Channel.of(
+    'ComplEx',
+    'DistMult',
+    'RotatE',
+    'TransE'
   )
 
   // ─── Knowledge Graph Overview ─────────────────────────────────────────────
@@ -91,9 +98,10 @@ workflow {
       'regression'
     )
     
-    // Run CV across all KG x indication x use case combinations
+    // Run CV across all KG x embedding x indication x use case combinations
     cv(
       kgs
+        .combine(embeddings)
         .combine(indications)
         .combine(usecases)
     )
@@ -109,6 +117,7 @@ workflow {
     
     range(
       subsample
+        .combine(embeddings)
     )
 
     // Combine feature range results with polynomial smoothing
@@ -133,9 +142,10 @@ workflow {
     // Cross-validation iterations for stability
     iterations = Channel.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 
-    // Generate predictions across all parameter combinations
+    // Generate predictions for all KGs with RotatE (original paper embedding)
     compute(
       kgs
+        .combine(Channel.of('RotatE'))
         .combine(ct_unique)
         .combine(probs)
         .combine(p_genes)
@@ -184,14 +194,27 @@ workflow {
 
     // Compute baseline statistics by indication
     baselines(
-      's3://alethiotx-artemis/figs/predicted_targets/all_targets.pickle',
-      's3://alethiotx-artemis/figs/predictions/data/all.csv'
+      's3://alethiotx-artemis/figs_review/predicted_targets/all_targets.pickle',
+      's3://alethiotx-artemis/figs_review/predictions/data/all.csv'
     )
 
     // Generate consensus predictions across KGs for SABCS targets
     sabcs_consensus(
-      's3://alethiotx-artemis/figs/predicted_targets/all_targets.pickle'
+      's3://alethiotx-artemis/figs_review/predicted_targets/all_targets.pickle'
     )
+  }
+
+  // ─── Negative Sampling Robustness Analyses ────────────────────────────────
+
+  if (params.mode == 'negative_sampling') {
+    sensitivity_analysis()
+    confident_negatives()
+  }
+
+  // ─── Feature Importance Analysis ──────────────────────────────────────────
+
+  if (params.mode == 'feature_importance') {
+    feature_importance()
   }
 
 }

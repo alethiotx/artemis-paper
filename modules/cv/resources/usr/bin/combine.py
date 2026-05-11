@@ -36,13 +36,14 @@ BIN_LABELS = {
     '2': '3 classes',
     '3': '4 classes',
     '5': '6 classes',
-    'nan': 'No binning'
+    'nan': ''
 }
 
 SCORING_LABELS = {
-    'accuracy': 'Accuracy',
-    'r2': 'R^2 (regression)',
-    'roc_auc': 'AUROC'
+    'accuracy': 'Accuracy (Classification)',
+    'average_precision': 'AUPRC (Classification)',
+    'r2': 'R² (Regression)',
+    'roc_auc': 'AUROC (Classification)'
 }
 
 CLASSIFIER_LABELS = {
@@ -53,64 +54,75 @@ CLASSIFIER_LABELS = {
 }
 
 # Scoring metric order for plots
-SCORING_ORDER = ["R^2 (regression)", "Accuracy", "AUROC"]
+SCORING_ORDER = ["R² (Regression)", "Accuracy (Classification)", "AUROC (Classification)", "AUPRC (Classification)"]
 
 # Plot configurations
 PLOT_CONFIGS = [
     {
         'name': 'all',
-        'filter': lambda df: df['targets'] == 'Real',
+        'filter': lambda df: (df['targets'] == 'Real') & (df['embedding'] == 'RotatE') & (df['feature_type'] == 'LP Scores'),
         'fill': 'kg',
         'color': 'kg',
         'facet': '~scoring+bins',
         'ylim': (0, 1),
-        'width': 16,
+        'width': 20,
         'height': 5
     },
     {
         'name': 'all_indications',
-        'filter': lambda df: df['targets'] == 'Real',
+        'filter': lambda df: (df['targets'] == 'Real') & (df['feature_type'] == 'LP Scores'),
         'fill': 'indication',
         'color': 'indication',
-        'facet': 'kg~scoring+bins',
+        'facet': 'kg+embedding~scoring+bins',
         'ylim': (0, 1),
         'width': 16,
-        'height': 9
+        'height': 24
     },
     {
         'name': 'all_baseline',
-        'filter': lambda df: df['targets'] == 'Random',
+        'filter': lambda df: (df['targets'] == 'Random') & (df['feature_type'] == 'LP Scores'),
         'fill': 'indication',
         'color': 'indication',
-        'facet': 'kg~scoring+bins',
+        'facet': 'kg+embedding~scoring+bins',
         'ylim': (-1, 1),
         'width': 16,
-        'height': 9
+        'height': 24
+    },
+    {
+        'name': 'all_embeddings_comparison',
+        'filter': lambda df: (df['targets'] == 'Real') & (df['embedding'] == 'RotatE'),
+        'fill': 'feature_type',
+        'color': 'feature_type',
+        'facet': '~scoring+bins',
+        'ylim': (0, 1),
+        'width': 20,
+        'height': 5
     }
 ]
 
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
-def parse_filename(filepath: str) -> Tuple[str, str]:
+def parse_filename(filepath: str) -> Tuple[str, str, str]:
     """
-    Extract knowledge graph and indication from filename.
+    Extract knowledge graph, embedding, and indication from filename.
     
     Parameters
     ----------
     filepath : str
-        Path to CV results file (format: <kg>_<indication>_<type>.csv)
+        Path to CV results file (format: <kg>_<embedding>_<indication>_<type>.csv)
     
     Returns
     -------
-    Tuple[str, str]
-        Knowledge graph name and indication
+    Tuple[str, str, str]
+        Knowledge graph name, embedding method, and indication
     """
     filename = Path(filepath).name
     parts = filename.split('_')
     kg = parts[0]
-    indication = parts[1]
-    return kg, indication
+    embedding = parts[1]
+    indication = parts[2]
+    return kg, embedding, indication
 
 
 def load_and_annotate_file(filepath: str) -> pd.DataFrame:
@@ -125,13 +137,14 @@ def load_and_annotate_file(filepath: str) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        DataFrame with added 'kg' and 'indication' columns
+        DataFrame with added 'kg', 'embedding', and 'indication' columns
     """
-    kg, indication = parse_filename(filepath)
+    kg, embedding, indication = parse_filename(filepath)
     
     df = pd.read_csv(filepath)
     df = df.reindex(sorted(df.columns), axis=1)
     df['kg'] = kg
+    df['embedding'] = embedding
     df['indication'] = indication
     
     return df
@@ -151,6 +164,10 @@ def standardize_labels(df: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         DataFrame with standardized labels
     """
+    # Ensure feature_type column exists (backward compatibility)
+    if 'feature_type' not in df.columns:
+        df['feature_type'] = 'LP Scores'
+
     # Standardize bins
     df['bins'] = df['bins'].astype('str')
     df = df[~(df['bins'] == '1')]  # Remove single bin results
@@ -202,7 +219,10 @@ def create_plot(df: pd.DataFrame, config: dict) -> object:
         + geom_boxplot()
         + facet_grid(config['facet'], scales="free_x")
         + theme_seaborn()
-        + theme(text=element_text(size=14))
+        + theme(
+            text=element_text(size=14),
+            strip_text=element_text(size=11),
+        )
         + xlab('')
         + ylab('Score')
         + ylim(*config['ylim'])

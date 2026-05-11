@@ -85,19 +85,20 @@ def compute_baseline_statistics(results: Dict) -> Dict:
                 kg_baselines = {}
                 
                 for kg in KNOWLEDGE_GRAPHS:
-                    # Concatenate all iterations
-                    iterations_df = pd.concat(
-                        results[ct][rf_threshold][pg_number][kg].values(),
-                        axis=1
-                    )
-                    
-                    # Calculate percentage of iterations above threshold per target
-                    threshold_value = float(rf_threshold)
-                    above_threshold = (iterations_df >= threshold_value).sum(axis=1)
-                    percentage_per_target = (above_threshold / iterations_df.shape[1]) * 100
-                    
-                    # Mean across all targets
-                    kg_baselines[kg] = percentage_per_target.mean()
+                    for embedding in results[ct][rf_threshold][pg_number][kg].keys():
+                        # Concatenate all iterations
+                        iterations_df = pd.concat(
+                            results[ct][rf_threshold][pg_number][kg][embedding].values(),
+                            axis=1
+                        )
+                        
+                        # Calculate percentage of iterations above threshold per target
+                        threshold_value = float(rf_threshold)
+                        above_threshold = (iterations_df >= threshold_value).sum(axis=1)
+                        percentage_per_target = (above_threshold / iterations_df.shape[1]) * 100
+                        
+                        # Mean across all targets
+                        kg_baselines[f'{kg}_{embedding}'] = percentage_per_target.mean()
                 
                 # Store as Series
                 baseline[ct][rf_threshold][pg_number] = pd.Series(kg_baselines)

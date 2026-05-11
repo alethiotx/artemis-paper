@@ -14,7 +14,7 @@
  * those that are indication-specific.
  */
 process upset {
-  publishDir params.outdir + '/figs/upset', mode: 'copy'
+  publishDir params.outdir + '/figs_review/upset', mode: 'copy'
   
   output:
     path '*.png'

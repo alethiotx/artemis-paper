@@ -13,13 +13,13 @@
  * @param iteration Cross-validation iteration number (1-10)
  */
 process compute {
-  tag "${kg}-${ct_unique}-${probs}-${p_genes}-${iteration}"
+  tag "${kg}-${embedding}-${ct_unique}-${probs}-${p_genes}-${iteration}"
   
-  // publishDir params.outdir + '/figs/predictions', mode: 'copy', pattern: 'targets/*.csv'
-  // publishDir params.outdir + '/figs/predictions', mode: 'copy', pattern: 'training/*.csv'
+  // publishDir params.outdir + '/figs_review/predictions', mode: 'copy', pattern: 'targets/*.csv'
+  // publishDir params.outdir + '/figs_review/predictions', mode: 'copy', pattern: 'training/*.csv'
   
   input:
-    tuple val(kg), val(ct_unique), val(probs), val(p_genes), val(iteration)
+    tuple val(kg), val(embedding), val(ct_unique), val(probs), val(p_genes), val(iteration)
   
   output:
     path('predictions/*.csv'), emit: predictions
@@ -33,6 +33,7 @@ process compute {
   
   compute.py \\
     ${kg} \\
+    ${embedding} \\
     ${ct_unique} \\
     ${probs} \\
     ${p_genes} \\
@@ -51,7 +52,7 @@ process compute {
  * @param csv Collection of prediction CSV files from all compute iterations
  */
 process pr_combine {
-  publishDir params.outdir + '/figs/predictions', mode: 'copy'
+  publishDir params.outdir + '/figs_review/predictions', mode: 'copy'
   
   input:
     path(csv)
@@ -81,7 +82,7 @@ process pr_combine {
  */
 process targets {
   label 'targets'
-  publishDir params.outdir + '/figs/predicted_targets', mode: 'copy'
+  publishDir params.outdir + '/figs_review/predicted_targets', mode: 'copy'
   
   input:
     path(csv)
@@ -107,7 +108,7 @@ process targets {
  */
 process training_sets {
   label 'training'
-  publishDir params.outdir + '/figs/training_sets', mode: 'copy'
+  publishDir params.outdir + '/figs_review/training_sets', mode: 'copy'
   
   input:
     path(csv)
@@ -133,7 +134,7 @@ process training_sets {
  */
 process baselines {
   label 'baselines'
-  publishDir params.outdir + '/figs/baselines', mode: 'copy'
+  publishDir params.outdir + '/figs_review/baselines', mode: 'copy'
   
   input:
     path(pickle)
@@ -162,7 +163,7 @@ process baselines {
  * @param csv Collection of SABCS overlap CSV files from compute processes
  */
 process sabcs {
-  publishDir params.outdir + '/figs/sabcs', mode: 'copy'
+  publishDir params.outdir + '/figs_review/sabcs', mode: 'copy'
   
   input:
     path(csv)
@@ -180,6 +181,52 @@ process sabcs {
 }
 
 /**
+ * Negative sampling sensitivity analysis
+ *
+ * Quantifies how sensitive model predictions are to the random draw of
+ * negative samples by measuring AUROC variance, per-gene prediction stability,
+ * and Jaccard similarity across training iterations.
+ */
+process sensitivity_analysis {
+  label 'sensitivity'
+  publishDir params.outdir + '/figs_review/sensitivity_analysis', mode: 'copy'
+  
+  output:
+    path 'data/*'
+    path 'plots/*'
+  
+  script:
+  """
+  mkdir -p data plots
+  
+  sensitivity_analysis.py ${params.scores_date}
+  """
+}
+
+/**
+ * Confident negative selection experiment
+ *
+ * Two-step robustness check comparing standard random negatives against
+ * negatives selected by an initial model as having low target probability.
+ * Compares AUROC and predicted target overlap between approaches.
+ */
+process confident_negatives {
+  label 'confident_negatives'
+  publishDir params.outdir + '/figs_review/confident_negatives', mode: 'copy'
+  
+  output:
+    path 'data/*'
+    path 'plots/*'
+  
+  script:
+  """
+  mkdir -p data plots
+  
+  confident_negatives.py ${params.scores_date}
+  """
+}
+
+/**
  * Generate consensus predictions across knowledge graphs for SABCS targets
  *
  * Computes consensus predictions by averaging target probabilities across all
@@ -191,7 +238,7 @@ process sabcs {
  */
 process sabcs_consensus {
   label 'sabcs_consensus'
-  publishDir params.outdir + '/figs/sabcs_consensus', mode: 'copy'
+  publishDir params.outdir + '/figs_review/sabcs_consensus', mode: 'copy'
   
   input:
     path(pickle)
@@ -205,5 +252,29 @@ process sabcs_consensus {
   mkdir -p plots data
   
   consensus_sabcs.py ${params.scores_date} ${pickle}
+  """
+}
+
+/**
+ * Feature importance analysis by relationship type
+ *
+ * Trains Random Forest classifiers for each KG × embedding × indication
+ * and extracts Gini feature importances aggregated by entity/relationship type
+ * (e.g., Gene, Biological Process, Pathway, Disease). Generates boxplots
+ * showing which relationship types are most informative for predictions.
+ */
+process feature_importance {
+  label 'feature_importance'
+  publishDir params.outdir + '/figs_review/feature_importance', mode: 'copy'
+  
+  output:
+    path 'data/*'
+    path 'plots/*'
+  
+  script:
+  """
+  mkdir -p data plots
+  
+  feature_importance.py ${params.scores_date}
   """
 }

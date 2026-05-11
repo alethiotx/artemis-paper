@@ -12,9 +12,13 @@ A Nextflow pipeline to reproduce the results from the Artemis paper.
 
 ## Pipeline Overview
 
+![Workflow Overview](workflow_figure.png)
+
+*Figure 1: End-to-end architecture spanning KG embedding generation (artemis-kgs-embeddings), link prediction scoring (artemis-kgs-link-predictions), clinical label construction (alethiotx), and the paper pipeline itself—from negative sampling through Random Forest classification to target predictions, feature importance, and external validation.*
+
 ![Pipeline DAG](dag.svg)
 
-*Figure: Complete workflow diagram showing data ingestion, knowledge graph analysis, model training, target prediction, and visualization steps.*
+*Figure 2: Nextflow process DAG showing data ingestion, knowledge graph analysis, model training, target prediction, and visualization steps.*
 
 ---
 
@@ -22,10 +26,12 @@ A Nextflow pipeline to reproduce the results from the Artemis paper.
 
 This pipeline performs:
 - **Data ingestion**: ChEMBL drugs, MeSH disease terms, clinical scores from trials
-- **Knowledge graph analysis**: Feature extraction from Hetionet, BioKG, OpenBioLink, and PrimeKG
-- **Cross-validation**: Binary, multiclass, and regression models for 7 disease indications
-- **Target prediction**: Random forest classifiers trained on KG embeddings + clinical scores
+- **Knowledge graph analysis**: Feature extraction from Hetionet, BioKG, OpenBioLink, and PrimeKG using 4 embedding methods (ComplEx, DistMult, RotatE, TransE). KG data is stored in `s3://alethiotx-artemis/data/kgs-no-data-leakage/`
+- **Cross-validation**: Binary, multiclass, and regression models for 7 disease indications across all KG × embedding combinations
+- **Target prediction**: Random forest classifiers trained on KG embeddings (RotatE) + clinical scores
 - **Consensus analysis**: Averaging predictions across knowledge graphs and iterations with hierarchical clustering
+- **Robustness analyses**: Negative sampling sensitivity analysis and confident negative selection experiments
+- **Feature importance**: Gini importance extraction by entity/relationship type across KG × embedding × indication
 - **Visualization**: Upset plots, heatmaps, ROC curves, baseline statistics, and consensus clustermaps
 
 ---
@@ -83,13 +89,14 @@ nextflow run main.nf --mode scores --scores_date 2025-12-12
 ### 3. `cv` (Cross-Validation)
 Evaluate ML models (Random Forest) across:
 - 4 knowledge graphs
+- 4 embedding methods (ComplEx, DistMult, RotatE, TransE)
 - 7 disease indications  
 - 3 task types: binary, multiclass, regression
 
 **Outputs:**
-- ROC-AUC scores per KG/indication/task
-- Feature importance rankings
-- Learning curves (subsampling analysis)
+- ROC-AUC and average precision scores per KG/embedding/indication/task
+- Raw embedding feature evaluation
+- Learning curves (subsampling analysis across embeddings)
 
 **Usage:**
 ```bash
@@ -98,7 +105,7 @@ nextflow run main.nf --mode cv
 
 ### 4. `predictions` (default)
 Train classifiers and predict targets:
-- Grid search: 4 KGs × 3 filtering modes × 5 RF thresholds × 3 pathway gene counts × 10 iterations
+- Grid search: 4 KGs × RotatE embedding × 3 filtering modes × 5 RF thresholds × 3 pathway gene counts × 10 iterations
 - Outputs: predicted targets, training sets, cross-indication overlap matrices, SABCS validation, baseline statistics
 - Aggregates all predictions and training labels into unified pickle files for downstream analysis
 - **Baseline Analysis:**
@@ -145,6 +152,59 @@ Create UpSet plots showing target overlap across knowledge graphs and filtering 
 nextflow run main.nf --mode upset
 ```
 
+### 8. `negative_sampling`
+Robustness analyses for the negative sampling strategy, addressing reviewer concerns about unlabeled genes being treated as negatives.
+
+**Analyses:**
+- **Sensitivity analysis**: Measures AUROC variance, per-gene prediction stability, and pairwise Jaccard similarity of predicted target sets across the 10 training iterations (each using different random negatives). Runs across all KG × embedding × CT filter × pathway gene combinations.
+- **Confident negative selection**: Two-step experiment where an initial RF model scores all unlabeled genes, then only genes with low predicted probability (bottom 25th percentile) are retained as "reliable" negatives for retraining. Compares AUROC and target overlap against the standard approach across the full parameter grid.
+
+**Prerequisites:** Clinical scores and pathway genes must already exist on S3 (run `--mode scores` first if needed).
+
+**Usage:**
+```bash
+nextflow run main.nf --mode negative_sampling
+```
+
+**Outputs:**
+```
+s3://alethiotx-artemis/figs_review/
+├── sensitivity_analysis/
+│   ├── data/
+│   │   ├── auroc_variance.csv         # AUROC mean ± SD per KG/embedding/indication
+│   │   ├── gene_stability.csv         # Per-gene prediction frequency summary
+│   │   └── jaccard_similarity.csv     # Pairwise Jaccard between iteration target sets
+│   └── plots/
+│       ├── auroc_variance.png         # AUROC variance across iterations
+│       ├── gene_stability.png         # Distribution of gene prediction stability
+│       └── jaccard_*.png              # Pairwise Jaccard heatmaps per indication/KG
+└── confident_negatives/
+    ├── data/
+    │   ├── confident_neg_auroc.csv    # AUROC comparison (standard vs confident)
+    │   └── confident_neg_overlap.csv  # Target set overlap between approaches
+    └── plots/
+        ├── auroc_comparison.png       # Side-by-side AUROC bars
+        └── overlap_comparison.png     # Jaccard overlap heatmap
+```
+
+### 9. `feature_importance`
+Extract and visualize Gini feature importances from Random Forest classifiers, aggregated by entity/relationship type (e.g., Gene, Biological Process, Pathway, Disease).
+
+- Trains classifiers for each KG × embedding × indication combination
+- Generates boxplots showing which relationship types are most informative for predictions
+
+**Usage:**
+```bash
+nextflow run main.nf --mode feature_importance
+```
+
+**Outputs:**
+```
+s3://alethiotx-artemis/figs_review/feature_importance/
+├── data/              # Feature importance CSVs per KG/embedding/indication
+└── plots/             # Boxplots of importance by relationship type
+```
+
 ---
 
 ## Configuration
@@ -176,7 +236,7 @@ nextflow run main.nf -profile local --outdir ./results --scores_date 2024-09-04
 ### Predictions mode
 ```
 s3://alethiotx-artemis/
-├── figs/
+├── figs_review/
 │   ├── predictions/
 │   │   ├── plots/
 │   │   │   ├── indications/   # Per-indication sensitivity plots
@@ -205,14 +265,23 @@ s3://alethiotx-artemis/
 │   │   │   ├── ...
 │   │   │   └── 0.7_unique_horizontal.png  # Horizontal Unique-only plot
 │   │   └── data/              # SABCS overlap data
-│   └── sabcs_consensus/
-│       ├── plots/             # Consensus prediction heatmaps & clustermaps
-│       └── data/all.pickle    # Consensus predictions
+│   ├── sabcs_consensus/
+│   │   ├── plots/             # Consensus prediction heatmaps & clustermaps
+│   │   └── data/all.pickle    # Consensus predictions
+│   ├── sensitivity_analysis/  # Negative sampling sensitivity
+│   │   ├── data/              # AUROC variance, gene stability, Jaccard CSVs
+│   │   └── plots/             # Variance, stability, and Jaccard heatmap plots
+│   ├── confident_negatives/   # Confident negative selection
+│   │   ├── data/              # AUROC comparison and overlap CSVs
+│   │   └── plots/             # Comparison bar charts and heatmaps
+│   └── feature_importance/    # Gini importance by relationship type
+│       ├── data/              # Importance CSVs per KG/embedding/indication
+│       └── plots/             # Boxplots by relationship type
 ```
 
 ### CV mode
 ```
-s3://alethiotx-artemis/figs/cv/
+s3://alethiotx-artemis/figs_review/cv/
 ├── data/
 │   └── combined_cv_scores.csv
 └── plots/
@@ -239,13 +308,16 @@ main.nf
 │   ├── pathway_genes/     # Reactome/KEGG enrichment
 │   ├── cv/                # Cross-validation experiments
 │   ├── predictions/       # Target prediction + ranking
-│   │   ├── compute.py         # Generate predictions per parameter combo
-│   │   ├── combine.py         # Aggregate prediction overlaps
-│   │   ├── targets.py         # Aggregate target probabilities
-│   │   ├── training_sets.py   # Aggregate training labels
-│   │   ├── baselines.py       # Compute baseline statistics
-│   │   ├── sabcs.py           # SABCS overlap analysis
-│   │   └── consensus_sabcs.py # Consensus predictions for SABCS
+│   │   ├── compute.py             # Generate predictions per parameter combo
+│   │   ├── combine.py             # Aggregate prediction overlaps
+│   │   ├── targets.py             # Aggregate target probabilities
+│   │   ├── training_sets.py       # Aggregate training labels
+│   │   ├── baselines.py           # Compute baseline statistics
+│   │   ├── sabcs.py               # SABCS overlap analysis
+│   │   ├── consensus_sabcs.py     # Consensus predictions for SABCS
+│   │   ├── sensitivity_analysis.py # Negative sampling sensitivity analysis
+│   │   ├── confident_negatives.py  # Confident negative selection experiment
+│   │   └── feature_importance.py   # Gini importance by relationship type
 │   ├── upset/             # Set overlap visualization
 │   └── kgs/               # KG summary notebook
 └── conf/
@@ -260,6 +332,7 @@ main.nf
 ### Core Python Packages
 - `pandas`, `numpy`, `scipy`: Data manipulation
 - `scikit-learn`: ML models (Random Forest, SVM)
+- `pyarrow`: Parquet file I/O for knowledge graph features
 - `pykeen==1.11.1`: Knowledge graph embeddings
 - `alethiotx>=2.0.9`: Proprietary data access utilities
 - `plotnine`: ggplot2-style visualization for publication-ready plots
@@ -339,9 +412,8 @@ from sklearn.ensemble import RandomForestClassifier
 import pandas as pd
 
 # Load KG features
-kg_features = pd.read_csv(
-    's3://alethiotx-artemis/data/kgs/associations/biokg/summarize/predictions.csv',
-    index_col=0
+kg_features = pd.read_parquet(
+    's3://alethiotx-artemis/data/kgs-no-data-leakage/associations/biokg/RotatE/summarize/predictions.parquet'
 )
 
 # Prepare training data

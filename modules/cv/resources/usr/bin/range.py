@@ -6,10 +6,11 @@ Evaluates Random Forest binary classification performance across different
 feature subsamples to analyze feature importance and model stability.
 
 Usage:
-    range.py <subsample> <date>
+    range.py <subsample> <embedding> <date>
 
 Arguments:
     subsample: Number of features to randomly sample
+    embedding: Embedding method (e.g., 'ComplEx', 'DistMult', 'RotatE', 'TransE')
     date: Clinical scores date (YYYY-MM-DD format)
 
 Output:
@@ -50,7 +51,7 @@ TARGET_CONFIGS = [
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
 
-def load_data(kg: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_data(kg: str, embedding: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Load knowledge graph features and clinical scores.
     
@@ -58,6 +59,8 @@ def load_data(kg: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.Dat
     ----------
     kg : str
         Knowledge graph name
+    embedding : str
+        Embedding method name
     indication : str
         Disease indication
     date : str
@@ -68,10 +71,10 @@ def load_data(kg: str, indication: str, date: str) -> tuple[pd.DataFrame, pd.Dat
     tuple[pd.DataFrame, pd.DataFrame]
         KG feature matrix and clinical scores DataFrame
     """
-    kg_path = f's3://alethiotx-artemis/data/kgs/associations/{kg}/summarize/predictions.csv'
+    kg_path = f's3://alethiotx-artemis/data/kgs-no-data-leakage/associations/{kg}/{embedding}/summarize/predictions.parquet'
     scores_path = f's3://alethiotx-artemis/data/clinical_scores/{date}/{indication}.csv'
     
-    kg_features = pd.read_csv(kg_path, index_col=0)
+    kg_features = pd.read_parquet(kg_path)
     clinical_scores = pd.read_csv(scores_path)
     
     return kg_features, clinical_scores
@@ -134,16 +137,17 @@ def evaluate_subsample(
 def main():
     """Execute feature range analysis cross-validation."""
     # Parse command-line arguments
-    if len(sys.argv) != 3:
+    if len(sys.argv) != 4:
         print(__doc__)
         sys.exit(1)
     
     n_features = int(sys.argv[1])
-    date = sys.argv[2]
+    embedding = sys.argv[2]
+    date = sys.argv[3]
     
     # Load data
-    print(f"Loading data for {KNOWLEDGE_GRAPH} / {INDICATION} ({date})...")
-    kg_features, clinical_scores = load_data(KNOWLEDGE_GRAPH, INDICATION, date)
+    print(f"Loading data for {KNOWLEDGE_GRAPH} / {embedding} / {INDICATION} ({date})...")
+    kg_features, clinical_scores = load_data(KNOWLEDGE_GRAPH, embedding, INDICATION, date)
     
     print(f"Running {N_ITERATIONS} iterations with {n_features} features...")
     
@@ -168,6 +172,8 @@ def main():
                 shuffle,
                 targets
             )
+            for r in result_list:
+                r['embedding'] = embedding
             results.extend(result_list)
     
     # Compile results
@@ -176,7 +182,7 @@ def main():
     # Save output
     output_dir = Path('data')
     output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / f'{n_features}.csv'
+    output_path = output_dir / f'{n_features}_{embedding}.csv'
     df_results.to_csv(output_path, index=False)
     print(f"✓ Results saved to {output_path}")
 
