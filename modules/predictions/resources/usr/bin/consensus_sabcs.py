@@ -53,6 +53,12 @@ HEATMAP_VMAX = 1
 HEATMAP_CENTER = 0.5
 HEATMAP_CMAP = 'vlag'
 
+# Font size for heatmap labels
+HEATMAP_FONTSIZE = 12
+
+# Substrings to strip from x-axis labels
+XLABEL_STRIP = ['_RotatE', '_rotate']
+
 # Figure dimensions
 CLUSTER_HEATMAP_FIGSIZE = (7, 20)
 DENDROGRAM_RATIO = (0.3, 0.05)
@@ -70,6 +76,7 @@ MANUSCRIPT_GENES = {
     'BRCA1', 'PTEN', 'MED1', 'BRAF', 'MDM2', 'GATA3', 'YAP1', 'RAD51',
     'FAT1', 'CDK9', 'RUNX2', 'RUNX3',
     'CDK12', 'RAD52', 'TEAD4', 'CD276',
+    'MUC1', 'CCR7', 'CCL21', 'CXCR3', 'KAT6A', 'KAT6B',
 }
 
 # ─── Helper Functions ────────────────────────────────────────────────────────
@@ -168,6 +175,15 @@ def create_clustered_heatmap(data: pd.DataFrame, pg_number: str, output_dir: Pat
     suffix : str
         Optional suffix for filename (default: '')
     """
+    # Strip substrings from column names for cleaner x-axis labels
+    rename_map = {}
+    for col in data.columns:
+        new_col = col
+        for s in XLABEL_STRIP:
+            new_col = new_col.replace(s, '')
+        rename_map[col] = new_col
+    data = data.rename(columns=rename_map)
+
     # Filter to targets with predictions in all KGs (no NaN)
     complete_data = data[~data.isna().any(axis=1)]
     
@@ -230,10 +246,13 @@ def create_clustered_heatmap(data: pd.DataFrame, pg_number: str, output_dir: Pat
             metric='euclidean',
             row_colors=row_colors,
         )
-        # Bold the gene labels mentioned in the manuscript
+        # Bold the gene labels mentioned in the manuscript and set font size
         for label in g.ax_heatmap.get_yticklabels():
+            label.set_fontsize(HEATMAP_FONTSIZE)
             if label.get_text() in MANUSCRIPT_GENES:
                 label.set_fontweight('bold')
+        for label in g.ax_heatmap.get_xticklabels():
+            label.set_fontsize(HEATMAP_FONTSIZE)
     else:
         g = sns.clustermap(
             complete_data,
@@ -248,6 +267,10 @@ def create_clustered_heatmap(data: pd.DataFrame, pg_number: str, output_dir: Pat
             method='average',
             metric='euclidean'
         )
+        for label in g.ax_heatmap.get_yticklabels():
+            label.set_fontsize(HEATMAP_FONTSIZE)
+        for label in g.ax_heatmap.get_xticklabels():
+            label.set_fontsize(HEATMAP_FONTSIZE)
     
     filename = f'clustermap_{pg_number}{suffix}.png' if suffix else f'clustermap_{pg_number}.png'
     plt.savefig(output_dir / filename, bbox_inches='tight')

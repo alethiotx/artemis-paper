@@ -24,7 +24,7 @@ from typing import List, Tuple
 
 import pandas as pd
 from plotnine import (
-    ggplot, aes, geom_boxplot, facet_grid, theme_seaborn,
+    ggplot, aes, geom_boxplot, facet_grid, facet_wrap, theme_seaborn,
     theme, element_text, xlab, ylab, ylim, ggsave
 )
 
@@ -64,9 +64,11 @@ PLOT_CONFIGS = [
         'fill': 'kg',
         'color': 'kg',
         'facet': '~scoring+bins',
+        'facet_type': 'wrap',
+        'facet_ncol': 4,
         'ylim': (0, 1),
-        'width': 20,
-        'height': 5
+        'width': 24,
+        'height': 14
     },
     {
         'name': 'all_indications',
@@ -211,17 +213,24 @@ def create_plot(df: pd.DataFrame, config: dict) -> object:
     """
     filtered_df = df[config['filter'](df)]
     
+    facet_type = config.get('facet_type', 'grid')
+    if facet_type == 'wrap':
+        facet_layer = facet_wrap(config['facet'], ncol=config.get('facet_ncol', 4), scales='free_x')
+    else:
+        facet_layer = facet_grid(config['facet'], scales='free_x')
+    
     plot = (
         ggplot(
             aes(x='classifier', y='score', fill=config['fill'], color=config['color']),
             filtered_df
         )
         + geom_boxplot()
-        + facet_grid(config['facet'], scales="free_x")
+        + facet_layer
         + theme_seaborn()
         + theme(
-            text=element_text(size=14),
-            strip_text=element_text(size=11),
+            text=element_text(size=28),
+            strip_text=element_text(size=20),
+            axis_text=element_text(size=18),
         )
         + xlab('')
         + ylab('Score')
