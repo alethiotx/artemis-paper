@@ -346,8 +346,8 @@ def create_main_text_heatmap(results: Dict) -> None:
     
     print("Generating main text heatmap...")
     
-    # Create figure with 2 subfigures
-    fig, axes = plt.subplots(ncols=2, nrows=1, sharey=True, sharex=True, figsize=(8, 4))
+    # Create figure with 2 subfigures (7 in wide for 2-column journal layout)
+    fig, axes = plt.subplots(ncols=2, nrows=1, sharey=True, sharex=True, figsize=(7, 3.5))
     
     # First subfigure (All CT, RF 0.5)
     config1 = MAIN_TEXT_CONFIG
@@ -363,11 +363,13 @@ def create_main_text_heatmap(results: Dict) -> None:
         vmin=HEATMAP_VMIN,
         vmax=HEATMAP_VMAX,
         center=HEATMAP_CENTER,
-        cmap=HEATMAP_CMAP
+        cmap=HEATMAP_CMAP,
+        annot_kws={'size': 7}
     )
     
-    axes[0].set_xticklabels(axes[0].get_xticklabels(), rotation=60)
-    axes[0].set_title(f"{config1['ct']} Clinical Targets, RF {config1['rf_threshold']}", fontsize=10)
+    axes[0].set_xticklabels(axes[0].get_xticklabels(), rotation=60, fontsize=7)
+    axes[0].tick_params(axis='y', labelsize=7)
+    axes[0].set_title(f"{config1['ct']} Clinical Targets, RF {config1['rf_threshold']}", fontsize=8, fontweight='bold')
     
     # Second subfigure (Unique CT, RF 0.7)
     config2 = MAIN_TEXT_CONFIG_2
@@ -383,17 +385,21 @@ def create_main_text_heatmap(results: Dict) -> None:
         vmin=HEATMAP_VMIN,
         vmax=HEATMAP_VMAX,
         center=HEATMAP_CENTER,
-        cmap=HEATMAP_CMAP
+        cmap=HEATMAP_CMAP,
+        annot_kws={'size': 7}
     )
     
-    axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=60)
-    axes[1].set_title(f"{config2['ct']} Clinical Targets, RF {config2['rf_threshold']}", fontsize=10)
+    axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=60, fontsize=7)
+    axes[1].tick_params(axis='y', labelsize=7)
+    axes[1].set_title(f"{config2['ct']} Clinical Targets, RF {config2['rf_threshold']}", fontsize=8, fontweight='bold')
     
     plt.tight_layout()
-    plt.savefig(heatmaps_dir / 'for_main_text.png')
+    plt.savefig(heatmaps_dir / 'for_main_text.png', dpi=300)
+    plt.savefig(heatmaps_dir / 'for_main_text.pdf')
     plt.close()
     
     print("  ✓ for_main_text.png")
+    print("  ✓ for_main_text.pdf")
 
 
 def create_full_heatmaps(results: Dict) -> None:

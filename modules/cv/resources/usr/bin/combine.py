@@ -24,9 +24,13 @@ from typing import List, Tuple
 
 import pandas as pd
 from plotnine import (
-    ggplot, aes, geom_boxplot, facet_grid, facet_wrap, theme_seaborn,
-    theme, element_text, xlab, ylab, ylim, ggsave
+    ggplot, aes, geom_boxplot, facet_grid, facet_wrap, theme_bw, theme_seaborn,
+    theme, element_text, element_line, element_rect, element_blank,
+    xlab, ylab, ylim, ggsave, scale_fill_manual, scale_color_manual
 )
+
+# Colorblind-friendly palette (Wong, 2011 - Nature Methods)
+CB_PALETTE = ['#0072B2', '#E69F00', '#009E73', '#CC79A7', '#56B4E9', '#D55E00', '#F0E442']
 
 
 # ─── Configuration ───────────────────────────────────────────────────────────
@@ -67,8 +71,9 @@ PLOT_CONFIGS = [
         'facet_type': 'wrap',
         'facet_ncol': 4,
         'ylim': (0, 1),
-        'width': 24,
-        'height': 14
+        'width': 7,
+        'height': 4,
+        'publication': True
     },
     {
         'name': 'all_indications',
@@ -219,23 +224,53 @@ def create_plot(df: pd.DataFrame, config: dict) -> object:
     else:
         facet_layer = facet_grid(config['facet'], scales='free_x')
     
-    plot = (
-        ggplot(
-            aes(x='classifier', y='score', fill=config['fill'], color=config['color']),
-            filtered_df
+    if config.get('publication'):
+        # Publication-ready style (journal 2-column, colorblind-safe)
+        n_colors = filtered_df[config['fill']].nunique()
+        palette = CB_PALETTE[:n_colors]
+        
+        plot = (
+            ggplot(
+                aes(x='classifier', y='score', fill=config['fill'], color=config['color']),
+                filtered_df
+            )
+            + geom_boxplot(outlier_size=0.5, size=0.3)
+            + facet_layer
+            + scale_fill_manual(values=palette)
+            + scale_color_manual(values=palette)
+            + theme_bw()
+            + theme(
+                text=element_text(size=8, family='sans-serif'),
+                strip_text=element_text(size=7, weight='bold'),
+                axis_text_x=element_text(size=7, rotation=45, ha='right'),
+                axis_text_y=element_text(size=7),
+                axis_title=element_text(size=8),
+                legend_title=element_blank(),
+                legend_text=element_text(size=6),
+                legend_key_size=12,
+                panel_grid_minor=element_blank(),
+                panel_border=element_rect(color='black', size=0.5),
+                strip_background=element_rect(fill='#F0F0F0', color='black', size=0.5),
+                figure_size=(config['width'], config['height']),
+            )
+            + xlab('')
+            + ylab('Score')
+            + ylim(*config['ylim'])
         )
-        + geom_boxplot()
-        + facet_layer
-        + theme_seaborn()
-        + theme(
-            text=element_text(size=28),
-            strip_text=element_text(size=20),
-            axis_text=element_text(size=18),
+    else:
+        # Original exploratory style
+        plot = (
+            ggplot(
+                aes(x='classifier', y='score', fill=config['fill'], color=config['color']),
+                filtered_df
+            )
+            + geom_boxplot()
+            + facet_layer
+            + theme_seaborn()
+            + xlab('')
+            + ylab('Score')
+            + ylim(*config['ylim'])
         )
-        + xlab('')
-        + ylab('Score')
-        + ylim(*config['ylim'])
-    )
     
     return plot
 
@@ -284,18 +319,20 @@ def main():
     # Generate all plots
     print("Generating visualizations...")
     for config in PLOT_CONFIGS:
-        plot_path = plot_dir / f"{config['name']}.png"
-        
         plot = create_plot(combined, config)
-        ggsave(
-            plot,
-            filename=str(plot_path),
-            width=config['width'],
-            height=config['height'],
-            dpi=300
-        )
         
-        print(f"  ✓ {plot_path}")
+        # Publication figures get both PNG and PDF; others just PNG
+        extensions = ['png', 'pdf'] if config.get('publication') else ['png']
+        for ext in extensions:
+            plot_path = plot_dir / f"{config['name']}.{ext}"
+            ggsave(
+                plot,
+                filename=str(plot_path),
+                width=config['width'],
+                height=config['height'],
+                dpi=300
+            )
+            print(f"  ✓ {plot_path}")
     
     print("✓ All visualizations generated")
 

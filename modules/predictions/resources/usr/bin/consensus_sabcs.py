@@ -274,6 +274,8 @@ def create_clustered_heatmap(data: pd.DataFrame, pg_number: str, output_dir: Pat
     
     filename = f'clustermap_{pg_number}{suffix}.png' if suffix else f'clustermap_{pg_number}.png'
     plt.savefig(output_dir / filename, bbox_inches='tight')
+    filename_pdf = filename.replace('.png', '.pdf')
+    plt.savefig(output_dir / filename_pdf, bbox_inches='tight')
     plt.close()
 
 

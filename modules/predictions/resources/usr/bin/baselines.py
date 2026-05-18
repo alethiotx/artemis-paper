@@ -29,8 +29,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from plotnine import (
-    ggplot, aes, theme_seaborn, theme, element_text,
-    xlab, ylab, geom_boxplot, facet_grid
+    ggplot, aes, theme_seaborn, theme_bw, theme, element_text, element_blank,
+    element_rect, xlab, ylab, geom_boxplot, facet_grid
 )
 
 
@@ -339,26 +339,35 @@ def create_baseline_comparison_plot(
         ordered=True
     )
     
-    # Create the plot using plotnine
+    # Create the plot using plotnine (publication style)
     plot = (
         ggplot(
             data,
             aes('factor(rf_prob)', 'value')
         )
-        + geom_boxplot(fill='#4C72B0', alpha=0.7, width=0.3)
+        + geom_boxplot(fill='#0072B2', alpha=0.7, width=0.5, size=0.3, outlier_size=0.5)
         + facet_grid('name ~ ct', scales='free_y')
-        + theme_seaborn()
+        + theme_bw()
+        + theme(
+            text=element_text(size=8, family='sans-serif'),
+            strip_text=element_text(size=7, weight='bold'),
+            axis_text_x=element_text(size=7),
+            axis_text_y=element_text(size=7),
+            axis_title=element_text(size=8),
+            panel_grid_minor=element_blank(),
+            panel_border=element_rect(color='black', size=0.5),
+            strip_background=element_rect(fill='#F0F0F0', color='black', size=0.5),
+            figure_size=(7, 5),
+        )
         + xlab('Random Forest Probability Threshold')
         + ylab('Value')
     )
     
-    # Create output directory if needed
-    output_path = plots_dir / 'for_paper.png'
-    
-    # Save the plot
-    plot.save(output_path, width=8, height=6)
-    
-    print(f"✓ Saved baseline comparison plot to {output_path}")
+    # Save as PNG and PDF
+    for ext in ['png', 'pdf']:
+        output_path = plots_dir / f'baseline_comparison.{ext}'
+        plot.save(output_path, width=7, height=5, dpi=300)
+        print(f"✓ Saved baseline comparison plot to {output_path}")
 
 
 # ─── Main Execution ──────────────────────────────────────────────────────────

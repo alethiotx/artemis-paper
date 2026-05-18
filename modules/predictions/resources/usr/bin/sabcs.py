@@ -362,8 +362,10 @@ def main():
         fig_horizontal = create_horizontal_unique_heatmap(results_averaged, '0.7', embedding)
         output_path_horizontal = plots_dir / f'0.7_unique_horizontal_{embedding}.png'
         fig_horizontal.savefig(output_path_horizontal, dpi=300, bbox_inches='tight')
+        fig_horizontal.savefig(plots_dir / f'0.7_unique_horizontal_{embedding}.pdf', bbox_inches='tight')
         plt.close(fig_horizontal)
         print(f"  ✓ 0.7_unique_horizontal_{embedding}.png")
+        print(f"  ✓ 0.7_unique_horizontal_{embedding}.pdf")
     
     print("✓ All visualizations generated")
 
