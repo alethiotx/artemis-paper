@@ -3,40 +3,40 @@
 graph TD
 
     %% A: Knowledge Graph Sources & Embeddings
-    subgraph EMBEDDINGS ["🐙 <b>github.com/alethiotx/artemis-kgs-embeddings</b>"]
-    KG1(["🕸️ <b>Hetionet</b>"])
-    KG2(["🕸️ <b>BioKG</b>"])
-    KG3(["🕸️ <b>OpenBioLink</b>"])
-    KG4(["🕸️ <b>PrimeKG</b>"])
-    LEAK(["🚫 <b>Drug–Target Edge Removal</b><br/>Prevents data leakage<br/>between KG and training labels"])
-    EMB(["🧊 <b>KG Embeddings</b><br/>ComplEx • DistMult • RotatE • TransE<br/>🐍 PyKEEN"])
+    subgraph EMBEDDINGS ["<b>github.com/alethiotx/artemis-kgs-embeddings</b>"]
+    KG1(["<b>Hetionet</b>"])
+    KG2(["<b>BioKG</b>"])
+    KG3(["<b>OpenBioLink</b>"])
+    KG4(["<b>PrimeKG</b>"])
+    LEAK(["<b>Drug–Target Edge Removal</b><br/>Prevents data leakage<br/>between KG and training labels"])
+    EMB(["<b>KG Embeddings</b><br/>ComplEx • DistMult • RotatE • TransE<br/>PyKEEN"])
     end
 
-    subgraph LINKPRED ["🐙 <b>github.com/alethiotx/artemis-kgs-link-predictions</b>"]
-    LP(["🔗 <b>KG Link Predictions</b><br/>Plausibility scores for genes and <br/>10,000 non-gene entities<br/>🐍 PyKEEN"])
+    subgraph LINKPRED ["<b>github.com/alethiotx/artemis-kgs-link-predictions</b>"]
+    LP(["<b>KG Link Predictions</b><br/>Plausibility scores for genes and <br/>10,000 non-gene entities<br/>PyKEEN"])
 
     %% C: Feature Matrix
-    MATRIX(["📊 <b>Gene–Entity Scores</b><br/>~20,000 genes × 10,000 entities"])
+    MATRIX(["<b>Gene–Entity Scores</b><br/>~20,000 genes × 10,000 entities"])
     end
 
     %% D: Clinical Labels
-    subgraph ALETHIOTX ["🐍 <b>pypi.org/project/alethiotx:artemis</b>"]
-    CHEMBL(["💊 <b>ChEMBL v36</b><br/>Bioactive molecules with clinical trial data<br/>Standardised to parent molecules"])
-    MESH(["🏥 <b>MeSH Disease Grouping</b><br/>7 indications: breast, lung, bowel,<br/>prostate, melanoma, diabetes, cardiovascular"])
-    CLIN(["🧪 <b>Clinical Scores</b><br/>Binary labels: target in clinical trials → 1, else → 0<br/>Trials from last 6 years only<br/>Gene family redundancy filtering"])
-    PATH(["🧬 <b>Pathway Genes</b><br/>Geneshot literature mining<br/>Top 100/300 per indication"])
+    subgraph ALETHIOTX ["<b>pypi.org/project/alethiotx:artemis</b>"]
+    CHEMBL(["<b>ChEMBL v36</b><br/>Bioactive molecules with clinical trial data<br/>Standardised to parent molecules"])
+    MESH(["<b>MeSH Disease Grouping</b><br/>7 indications: breast, lung, bowel,<br/>prostate, melanoma, diabetes, cardiovascular"])
+    CLIN(["<b>Clinical Scores</b><br/>Binary labels: target in clinical trials → 1, else → 0<br/>Trials from last 6 years only<br/>Gene family redundancy filtering"])
+    PATH(["<b>Pathway Genes</b><br/>Geneshot literature mining<br/>Top 100/300 per indication"])
     end
 
     %% E: Model & Outputs
-    subgraph PAPER ["🐙 <b>github.com/alethiotx/artemis-paper</b>"]
-    NEG(["➖ <b>Negative Sampling</b><br/>Balanced 1:1 random sampling<br/>Known targets excluded"])
-    MODEL(["🌲 <b>Random Forest Binary Classifier</b><br/>5-fold cross-validation, 10 random seeds<br/>Parameter optimisation (RF threshold 0.7)"])
+    subgraph PAPER ["<b>github.com/alethiotx/artemis-paper</b>"]
+    NEG(["<b>Negative Sampling</b><br/>Balanced 1:1 random sampling<br/>Known targets excluded"])
+    MODEL(["<b>Random Forest Binary Classifier</b><br/>5-fold cross-validation, 10 random seeds<br/>Parameter optimisation (RF threshold 0.7)"])
 
     %% F: Outputs
-    O1(["🎯 <b>Target Predictions</b><br/>Per-gene RF probabilities<br/>7 indications × 4 KGs"])
-    O2(["📋 <b>Specificity & Sensitivity</b><br/>Cross-indication overlap analysis<br/>Baseline predictivity metrics"])
-    O4(["🔍 <b>Feature Importance</b><br/>RF Gini importance by relationship type<br/>Pathway, anatomy, GO term contributions"])
-    O3(["✅ <b>External Validation</b><br/>SABCS 2024 novel breast cancer targets<br/>Consensus ranking across KGs"])
+    O1(["<b>Target Predictions</b><br/>Per-gene RF probabilities<br/>7 indications × 4 KGs"])
+    O2(["<b>Specificity & Sensitivity</b><br/>Cross-indication overlap analysis<br/>Baseline predictivity metrics"])
+    O4(["<b>Feature Importance</b><br/>RF Gini importance by relationship type<br/>Pathway, anatomy, GO term contributions"])
+    O3(["<b>External Validation</b><br/>SABCS 2024 novel breast cancer targets<br/>Consensus ranking across KGs"])
     end
 
     %% Connections
